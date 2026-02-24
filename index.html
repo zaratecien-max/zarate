@@ -13,23 +13,24 @@
         .card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
         h1 { font-size: 1.5rem; text-align: center; color: var(--primary); margin-top: 0; }
         .btn-google { background: #4285F4; color: white; border: none; padding: 12px; border-radius: 10px; font-weight: bold; width: 100%; cursor: pointer; margin-bottom: 15px; }
+        .evento-sugerido { background: #fff; padding: 12px; border-radius: 10px; margin-bottom: 8px; cursor: pointer; border-left: 5px solid #4285F4; box-shadow: 0 2px 4px rgba(0,0,0,0.05); font-size: 0.9rem; }
         .form-group { margin-bottom: 12px; }
         label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 5px; color: #64748b; }
         select, input { width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 10px; font-size: 16px; box-sizing: border-box; outline: none; }
         button { width: 100%; padding: 15px; border-radius: 10px; border: none; font-size: 1rem; font-weight: bold; cursor: pointer; color: white; }
         .btn-add { background: var(--primary); margin-top: 10px; }
+        .btn-corte { background: var(--warning); margin-top: 25px; }
         .item-registro { background: #fff; padding: 12px; border-radius: 10px; margin-bottom: 10px; border-left: 5px solid var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .evento-sugerido { background: #f1f5f9; padding: 10px; border-radius: 8px; margin-bottom: 5px; cursor: pointer; border: 1px solid #e2e8f0; font-size: 0.9rem; }
     </style>
 </head>
 <body>
 
 <div class="card">
     <h1>Zárate Cien</h1>
-    <button class="btn-google" id="btn_login" onclick="handleAuthClick()">🔗 Sincronizar Calendario</button>
-    
-    <div id="seccion_eventos" style="display:none; margin-bottom: 15px;">
-        <label>Eventos detectados:</label>
+    <button class="btn-google" onclick="window.handleAuthClick()">🔗 Sincronizar Calendario</button>
+
+    <div id="seccion_eventos" style="display:none; margin-bottom: 20px;">
+        <label>Eventos de hoy:</label>
         <div id="lista_eventos_google"></div>
     </div>
 
@@ -39,26 +40,23 @@
             <option>Consultorio 1</option><option>Consultorio 2</option><option>Espejos</option><option>Jardín</option><option>Tiendita</option>
         </select>
     </div>
-    <div class="form-group"><label>Concepto</label><input type="text" id="concepto" placeholder="Nombre del cliente"></div>
-    <div class="form-group"><label>Monto ($)</label><input type="number" id="monto" placeholder="0.00"></div>
-    <button class="btn-add" onclick="registrarFinal()">✅ REGISTRAR COBRO</button>
+    <div class="form-group"><label>Concepto (Cliente)</label><input type="text" id="concepto"></div>
+    <div class="form-group"><label>Monto ($)</label><input type="number" id="monto"></div>
+    <button class="btn-add" onclick="window.registrarFinal()">✅ REGISTRAR COBRO</button>
 </div>
 
 <div id="contenedorRegistros"></div>
+<button class="btn-corte" onclick="window.validarCorte()">💰 REALIZAR CORTE DE CAJA</button>
 
 <script>
-    // Configuración (Tus credenciales se mantienen)
     const CLIENT_ID = '121923437756-b8fdp4su9es3f67ahv2vdlv916b8i5pb.apps.googleusercontent.com';
     const API_KEY = 'AIzaSyB8iPhJMpbvUp7mQqCNBUXnkig7vV1m5RA';
     const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest';
     const SCOPES = 'https://www.googleapis.com/auth/calendar.readonly';
 
-    let tokenClient;
-    let gapiInited = false;
-    let gisInited = false;
+    let tokenClient, gapiInited = false, gisInited = false;
     let registros = JSON.parse(localStorage.getItem('zarate_datos')) || [];
 
-    // Inicialización obligatoria
     window.onload = () => {
         actualizarInterfaz();
         gapi.load('client', async () => {
@@ -71,18 +69,21 @@
         gisInited = true;
     };
 
-    // FUNCIÓN CORREGIDA (Vinculada a window para que el HTML la vea siempre)
     window.handleAuthClick = function() {
-        if (!gisInited || !gapiInited) {
-            alert("Cargando librerías de Google...");
-            return;
-        }
+        if (!gisInited) return alert("Cargando...");
+        
         tokenClient.callback = async (resp) => {
-            if (resp.error) throw resp;
+            // AJUSTE: Buscar desde las 00:00 de hoy
+            const hoy = new Date();
+            hoy.setHours(0,0,0,0);
+            
             const res = await gapi.client.calendar.events.list({
-                calendarId: 'primary',
-                timeMin: (new Date()).toISOString(),
-                showDeleted: false, singleEvents: true, maxResults: 5, orderBy: 'startTime'
+                calendarId: 'primary', 
+                timeMin: hoy.toISOString(), // <-- Ahora detecta todo el día
+                showDeleted: false, 
+                singleEvents: true, 
+                maxResults: 20, 
+                orderBy: 'startTime'
             });
             renderEventos(res.result.items);
         };
@@ -93,11 +94,17 @@
         const lista = document.getElementById('lista_eventos_google');
         lista.innerHTML = '';
         document.getElementById('seccion_eventos').style.display = 'block';
-        if(eventos.length === 0) lista.innerHTML = '<small>No hay eventos próximos.</small>';
+        
+        if (!eventos || eventos.length === 0) {
+            lista.innerHTML = '<small>No se encontraron eventos para hoy.</small>';
+            return;
+        }
+
         eventos.forEach(ev => {
             const div = document.createElement('div');
             div.className = 'evento-sugerido';
-            div.innerText = ev.summary || 'Sin título';
+            const hora = ev.start.dateTime ? new Date(ev.start.dateTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Todo el día';
+            div.innerText = `${hora} - ${ev.summary}`;
             div.onclick = () => { document.getElementById('concepto').value = ev.summary; };
             lista.appendChild(div);
         });
@@ -110,7 +117,7 @@
             monto: document.getElementById('monto').value,
             fecha: new Date().toLocaleString()
         };
-        if(!data.concepto || !data.monto) return alert("Completa los campos");
+        if(!data.concepto || !data.monto) return alert("Faltan datos");
         registros.push(data);
         localStorage.setItem('zarate_datos', JSON.stringify(registros));
         actualizarInterfaz();
@@ -122,11 +129,21 @@
         const cont = document.getElementById('contenedorRegistros');
         cont.innerHTML = registros.map(r => `
             <div class="item-registro">
-                <b>${r.area}</b>: ${r.concepto} - <b>$${r.monto}</b><br>
+                <b>${r.area}</b> - ${r.concepto} | <b>$${r.monto}</b><br>
                 <small>${r.fecha}</small>
             </div>
         `).reverse().join('');
     }
+
+    window.validarCorte = function() {
+        const total = registros.reduce((sum, r) => sum + parseFloat(r.monto || 0), 0);
+        alert("Total acumulado: $" + total.toFixed(2));
+        if(confirm("¿Deseas realizar el corte y limpiar el historial?")) {
+            registros = [];
+            localStorage.removeItem('zarate_datos');
+            actualizarInterfaz();
+        }
+    };
 </script>
 </body>
 </html>
