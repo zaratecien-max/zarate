@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Zárate Cien - Control Maestro</title>
+    <link rel="icon" href="data:,">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://apis.google.com/js/api.js" async defer></script>
+    <style>
+        :root { --primary: #2563eb; --success: #16a34a; --warning: #f59e0b; --bg: #f8fafc; --text: #1e293b; }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 15px; }
+        .card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        h1 { font-size: 1.5rem; text-align: center; color: var(--primary); margin-top: 0; }
+        .btn-google { background: #4285F4; color: white; border: none; padding: 12px; border-radius: 10px; font-weight: bold; width: 100%; cursor: pointer; margin-bottom: 15px; }
+        .form-group { margin-bottom: 12px; }
+        label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 5px; color: #64748b; }
+        select, input { width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 10px; font-size: 16px; box-sizing: border-box; outline: none; }
+        button { width: 100%; padding: 15px; border-radius: 10px; border: none; font-size: 1rem; font-weight: bold; cursor: pointer; color: white; }
+        .btn-add { background: var(--primary); margin-top: 10px; }
+        .item-registro { background: #fff; padding: 12px; border-radius: 10px; margin-bottom: 10px; border-left: 5px solid var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .evento-sugerido { background: #f1f5f9; padding: 10px; border-radius: 8px; margin-bottom: 5px; cursor: pointer; border: 1px solid #e2e8f0; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h1>Zárate Cien</h1>
+    <button class="btn-google" id="btn_login" onclick="handleAuthClick()">🔗 Sincronizar Calendario</button>
+    
+    <div id="seccion_eventos" style="display:none; margin-bottom: 15px;">
+        <label>Eventos detectados:</label>
+        <div id="lista_eventos_google"></div>
+    </div>
+
+    <div class="form-group">
+        <label>Lugar</label>
+        <select id="area">
+            <option>Consultorio 1</option><option>Consultorio 2</option><option>Espejos</option><option>Jardín</option><option>Tiendita</option>
+        </select>
+    </div>
+    <div class="form-group"><label>Concepto</label><input type="text" id="concepto" placeholder="Nombre del cliente"></div>
+    <div class="form-group"><label>Monto ($)</label><input type="number" id="monto" placeholder="0.00"></div>
+    <button class="btn-add" onclick="registrarFinal()">✅ REGISTRAR COBRO</button>
+</div>
+
+<div id="contenedorRegistros"></div>
+
+<script>
+    // Configuración (Tus credenciales se mantienen)
+    const CLIENT_ID = '121923437756-b8fdp4su9es3f67ahv2vdlv916b8i5pb.apps.googleusercontent.com';
+    const API_KEY = 'AIzaSyB8iPhJMpbvUp7mQqCNBUXnkig7vV1m5RA';
+    const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest';
+    const SCOPES = 'https://www.googleapis.com/auth/calendar.readonly';
+
+    let tokenClient;
+    let gapiInited = false;
+    let gisInited = false;
+    let registros = JSON.parse(localStorage.getItem('zarate_datos')) || [];
+
+    // Inicialización obligatoria
+    window.onload = () => {
+        actualizarInterfaz();
+        gapi.load('client', async () => {
+            await gapi.client.init({ apiKey: API_KEY, discoveryDocs: [DISCOVERY_DOC] });
+            gapiInited = true;
+        });
+        tokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: CLIENT_ID, scope: SCOPES, callback: ''
+        });
+        gisInited = true;
+    };
+
+    // FUNCIÓN CORREGIDA (Vinculada a window para que el HTML la vea siempre)
+    window.handleAuthClick = function() {
+        if (!gisInited || !gapiInited) {
+            alert("Cargando librerías de Google...");
+            return;
+        }
+        tokenClient.callback = async (resp) => {
+            if (resp.error) throw resp;
+            const res = await gapi.client.calendar.events.list({
+                calendarId: 'primary',
+                timeMin: (new Date()).toISOString(),
+                showDeleted: false, singleEvents: true, maxResults: 5, orderBy: 'startTime'
+            });
+            renderEventos(res.result.items);
+        };
+        tokenClient.requestAccessToken({prompt: 'consent'});
+    };
+
+    function renderEventos(eventos) {
+        const lista = document.getElementById('lista_eventos_google');
+        lista.innerHTML = '';
+        document.getElementById('seccion_eventos').style.display = 'block';
+        if(eventos.length === 0) lista.innerHTML = '<small>No hay eventos próximos.</small>';
+        eventos.forEach(ev => {
+            const div = document.createElement('div');
+            div.className = 'evento-sugerido';
+            div.innerText = ev.summary || 'Sin título';
+            div.onclick = () => { document.getElementById('concepto').value = ev.summary; };
+            lista.appendChild(div);
+        });
+    }
+
+    window.registrarFinal = function() {
+        const data = {
+            area: document.getElementById('area').value,
+            concepto: document.getElementById('concepto').value,
+            monto: document.getElementById('monto').value,
+            fecha: new Date().toLocaleString()
+        };
+        if(!data.concepto || !data.monto) return alert("Completa los campos");
+        registros.push(data);
+        localStorage.setItem('zarate_datos', JSON.stringify(registros));
+        actualizarInterfaz();
+        document.getElementById('concepto').value = '';
+        document.getElementById('monto').value = '';
+    };
+
+    function actualizarInterfaz() {
+        const cont = document.getElementById('contenedorRegistros');
+        cont.innerHTML = registros.map(r => `
+            <div class="item-registro">
+                <b>${r.area}</b>: ${r.concepto} - <b>$${r.monto}</b><br>
+                <small>${r.fecha}</small>
+            </div>
+        `).reverse().join('');
+    }
+</script>
+</body>
+</html>
