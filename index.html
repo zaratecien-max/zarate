@@ -28,11 +28,11 @@
 <div class="card">
     <h1>Zárate Cien</h1>
     <button class="btn-google" onclick="window.handleAuthClick()">
-        <span>🔗</span> Sincronizar TODOS los Calendarios
+        <span>🔗</span> Sincronizar Todos los Calendarios
     </button>
 
     <div id="seccion_eventos" style="display:none; margin-bottom: 20px;">
-        <label id="etiqueta_eventos">Buscando eventos...</label>
+        <label id="etiqueta_eventos">Buscando citas de hoy...</label>
         <div id="lista_eventos_google"></div>
     </div>
 
@@ -42,8 +42,8 @@
             <option>Consultorio 1</option><option>Consultorio 2</option><option>Espejos</option><option>Jardín</option><option>Tiendita</option>
         </select>
     </div>
-    <div class="form-group"><label>Concepto (Cliente)</label><input type="text" id="concepto"></div>
-    <div class="form-group"><label>Monto ($)</label><input type="number" id="monto"></div>
+    <div class="form-group"><label>Concepto (Cliente)</label><input type="text" id="concepto" placeholder="Toca una cita o escribe"></div>
+    <div class="form-group"><label>Monto ($)</label><input type="number" id="monto" placeholder="0.00"></div>
     <button class="btn-add" onclick="window.registrarFinal()">✅ REGISTRAR COBRO</button>
 </div>
 
@@ -51,6 +51,11 @@
 <button class="btn-corte" onclick="window.validarCorte()">💰 REALIZAR CORTE DE CAJA</button>
 
 <script>
+  // 1. DECLARACIÓN PREVIA PARA EVITAR ERRORES DE CARGA
+    window.handleAuthClick = () => { alert("Google aún está cargando, espera 2 segundos."); };
+    window.registrarFinal = () => { console.log("Cargando..."); };
+    window.validarCorte = () => { console.log("Cargando..."); };
+
     const CLIENT_ID = '121923437756-b8fdp4su9es3f67ahv2vdlv916b8i5pb.apps.googleusercontent.com';
     const API_KEY = 'AIzaSyB8iPhJMpbvUp7mQqCNBUXnkig7vV1m5RA';
     const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest';
@@ -64,6 +69,7 @@
         gapi.load('client', async () => {
             await gapi.client.init({ apiKey: API_KEY, discoveryDocs: [DISCOVERY_DOC] });
             gapiInited = true;
+            activarLógica();
         });
         tokenClient = google.accounts.oauth2.initTokenClient({
             client_id: CLIENT_ID, scope: SCOPES, callback: ''
@@ -71,45 +77,63 @@
         gisInited = true;
     };
 
-    window.handleAuthClick = function() {
-        if (!gisInited) return alert("Cargando...");
-        
-        tokenClient.callback = async (resp) => {
-            if (resp.error) return;
+    function activarLógica() {
+        window.handleAuthClick = function() {
+            tokenClient.callback = async (resp) => {
+                if (resp.error) return;
+                const inicioHoy = new Date(); inicioHoy.setHours(0,0,0,0);
+                const finHoy = new Date(); finHoy.setHours(23,59,59,999);
+                
+                try {
+                    // Escanear todos los calendarios disponibles (Argelia, Karla, etc.)
+                    const listaCal = await gapi.client.calendar.calendarList.list();
+                    let eventosTotal = [];
 
-            const inicioHoy = new Date(); inicioHoy.setHours(0,0,0,0);
-            const finHoy = new Date(); finHoy.setHours(23,59,59,999);
-            
-            try {
-                // 1. Obtener lista de todos los calendarios del usuario
-                const listaCalendarios = await gapi.client.calendar.calendarList.list();
-                let todosLosEventos = [];
-
-                // 2. Buscar eventos en cada calendario
-                for (let cal of listaCalendarios.result.items) {
-                    const res = await gapi.client.calendar.events.list({
-                        calendarId: cal.id,
-                        timeMin: inicioHoy.toISOString(),
-                        timeMax: finHoy.toISOString(),
-                        singleEvents: true
-                    });
-                    if (res.result.items) {
-                        todosLosEventos = todosLosEventos.concat(res.result.items);
+                    for (let cal of listaCal.result.items) {
+                        const res = await gapi.client.calendar.events.list({
+                            calendarId: cal.id, 
+                            timeMin: inicioHoy.toISOString(),
+                            timeMax: finHoy.toISOString(),
+                            singleEvents: true
+                        });
+                        if (res.result.items) eventosTotal = eventosTotal.concat(res.result.items);
                     }
-                }
 
-                // 3. Eliminar duplicados (por si un evento está en dos calendarios)
-                const unicos = Array.from(new Set(todosLosEventos.map(a => a.id)))
-                    .map(id => todosLosEventos.find(a => a.id === id));
+                    // Quitar duplicados y mostrar
+                    const unicos = Array.from(new Set(eventosTotal.map(a => a.id)))
+                        .map(id => eventosTotal.find(a => a.id === id));
+                    
+                    renderEventos(unicos);
+                } catch (err) { alert("Error al sincronizar calendarios"); }
+            };
+            tokenClient.requestAccessToken({prompt: 'consent'});
+        };
 
-                renderEventos(unicos);
-            } catch (err) {
-                console.error(err);
-                alert("Error al sincronizar: Asegúrate de dar permisos para ver todos los calendarios.");
+        window.registrarFinal = function() {
+            const data = {
+                area: document.getElementById('area').value,
+                concepto: document.getElementById('concepto').value,
+                monto: document.getElementById('monto').value,
+                fecha: new Date().toLocaleString()
+            };
+            if(!data.concepto || !data.monto) return alert("Llena concepto y monto");
+            registros.push(data);
+            localStorage.setItem('zarate_datos', JSON.stringify(registros));
+            actualizarInterfaz();
+            document.getElementById('concepto').value = '';
+            document.getElementById('monto').value = '';
+        };
+
+        window.validarCorte = function() {
+            const total = registros.reduce((sum, r) => sum + parseFloat(r.monto || 0), 0);
+            alert("Total acumulado hoy: $" + total.toFixed(2));
+            if(confirm("¿Deseas realizar el corte y borrar el historial de hoy?")) {
+                registros = [];
+                localStorage.removeItem('zarate_datos');
+                actualizarInterfaz();
             }
         };
-        tokenClient.requestAccessToken({prompt: 'consent'});
-    };
+    }
 
     function renderEventos(eventos) {
         const lista = document.getElementById('lista_eventos_google');
@@ -118,56 +142,32 @@
         document.getElementById('seccion_eventos').style.display = 'block';
         
         if (!eventos || eventos.length === 0) {
-            etiqueta.innerText = "No se encontraron eventos en tus calendarios.";
+            etiqueta.innerText = "No hay eventos en ningún calendario para hoy.";
             return;
         }
 
-        etiqueta.innerText = `${eventos.length} eventos encontrados en todos tus calendarios:`;
+        etiqueta.innerText = `${eventos.length} citas encontradas hoy:`;
         eventos.sort((a,b) => new Date(a.start.dateTime || a.start.date) - new Date(b.start.dateTime || b.start.date));
 
         eventos.forEach(ev => {
             const div = document.createElement('div');
             div.className = 'evento-sugerido';
             const hora = ev.start.dateTime ? new Date(ev.start.dateTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Todo el día';
-            div.innerText = `${hora} - ${ev.summary || '(Sin título)'}`;
+            div.innerText = `${hora} - ${ev.summary || '(Sin nombre)'}`;
             div.onclick = () => { document.getElementById('concepto').value = ev.summary; };
             lista.appendChild(div);
         });
     }
 
-    window.registrarFinal = function() {
-        const data = {
-            area: document.getElementById('area').value,
-            concepto: document.getElementById('concepto').value,
-            monto: document.getElementById('monto').value,
-            fecha: new Date().toLocaleString()
-        };
-        if(!data.concepto || !data.monto) return alert("Faltan datos");
-        registros.push(data);
-        localStorage.setItem('zarate_datos', JSON.stringify(registros));
-        actualizarInterfaz();
-        document.getElementById('monto').value = '';
-    };
-
     function actualizarInterfaz() {
         const cont = document.getElementById('contenedorRegistros');
         cont.innerHTML = registros.map(r => `
             <div class="item-registro">
-                <b>${r.area}</b> - ${r.concepto} | <b>$${r.monto}</b><br>
+                <b>${r.area}</b>: ${r.concepto} | <b>$${r.monto}</b><br>
                 <small>${r.fecha}</small>
             </div>
         `).reverse().join('');
     }
-
-    window.validarCorte = function() {
-        const total = registros.reduce((sum, r) => sum + parseFloat(r.monto || 0), 0);
-        alert("Corte de Caja: $" + total.toFixed(2));
-        if(confirm("¿Limpiar historial?")) {
-            registros = [];
-            localStorage.removeItem('zarate_datos');
-            actualizarInterfaz();
-        }
-    };
 </script>
 </body>
 </html>
