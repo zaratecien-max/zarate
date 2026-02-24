@@ -2,154 +2,190 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Zárate Cien - Control de Caja Total</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Zárate Cien - Control Maestro</title>
+    <link rel="icon" href="data:,">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://apis.google.com/js/api.js" async defer></script>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; margin: 20px; background-color: #f4f4f9; }
-        .container { max-width: 600px; margin: auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        h2 { color: #1a2a3a; text-align: center; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
-        .section { margin-bottom: 20px; padding: 15px; background: #fff; border: 1px solid #ddd; border-radius: 8px; }
-        button { width: 100%; padding: 12px; margin-top: 10px; cursor: pointer; border: none; border-radius: 6px; font-weight: bold; transition: 0.3s; }
-        .btn-auth { background-color: #4285F4; color: white; }
-        .btn-today { background-color: #3498db; color: white; }
-        .btn-month { background-color: #2c3e50; color: white; }
-        .btn-save { background-color: #27ae60; color: white; }
-        .btn-report { background-color: #e67e22; color: white; margin-top: 20px; }
-        input, select { width: 100%; padding: 10px; margin: 5px 0 15px 0; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; }
-        #itemsContenedor { margin-top: 20px; }
-        .registro-item { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #eee; font-size: 0.85em; }
+        :root { --primary: #2563eb; --success: #16a34a; --warning: #f59e0b; --bg: #f8fafc; --text: #1e293b; }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 15px; }
+        .card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        h1 { font-size: 1.5rem; text-align: center; color: var(--primary); margin-top: 0; }
+        .contador-box { padding: 12px; border-radius: 10px; text-align: center; font-weight: bold; margin-bottom: 15px; display: none; }
+        .contador-pendiente { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
+        .contador-listo { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+        .btn-google { background: #4285F4; color: white; border: none; padding: 12px; border-radius: 10px; font-weight: bold; width: 100%; cursor: pointer; margin-bottom: 15px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .evento-sugerido { background: #fff; padding: 12px; border-radius: 10px; margin-bottom: 8px; cursor: pointer; border-left: 5px solid #4285F4; box-shadow: 0 2px 4px rgba(0,0,0,0.05); font-size: 0.9rem; transition: 0.3s; }
+        .evento-cobrado { border-left-color: #ef4444 !important; color: #ef4444 !important; text-decoration: line-through; opacity: 0.5; background: #fee2e2; cursor: default; pointer-events: none; }
+        .form-group { margin-bottom: 12px; }
+        label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 5px; color: #64748b; }
+        select, input { width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 10px; font-size: 16px; box-sizing: border-box; outline: none; }
+        button { width: 100%; padding: 15px; border-radius: 10px; border: none; font-size: 1rem; font-weight: bold; cursor: pointer; color: white; }
+        .btn-add { background: var(--primary); margin-top: 10px; }
+        .btn-reporte { background: #6366f1; margin-top: 15px; }
+        .btn-corte { background: var(--warning); margin-top: 15px; }
+        .item-registro { background: #fff; padding: 12px; border-radius: 10px; margin-bottom: 10px; border-left: 5px solid var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h2>Zárate Cien: Gestión de Cobros</h2>
-
-    <div class="section">
-        <p style="font-size: 0.8em; color: #666; text-align: center;">Paso 1: Conecta tu cuenta para evitar errores 404</p>
-        <button class="btn-auth" onclick="iniciarSesion()">🔑 Iniciar Sesión con Google</button>
+<div class="card">
+    <h1>Zárate Cien</h1>
+    <button id="btnSync" class="btn-google">🔗 Sincronizar Calendarios</button>
+    <div id="contador_pendientes" class="contador-box"></div>
+    <div id="seccion_eventos" style="display:none; margin-bottom: 20px;">
+        <label>Citas de hoy:</label>
+        <div id="lista_eventos_google"></div>
     </div>
-
-    <div class="section">
-        <button class="btn-today" onclick="cargarCitasHoy()">📅 Cargar Citas de Hoy</button>
-        <button class="btn-month" onclick="cargarMovimientosMes()">📊 Cargar Movimientos del Mes</button>
-    </div>
-
-    <div class="section">
-        <label>Paciente / Concepto:</label>
-        <input type="text" id="pacienteNombre" placeholder="Nombre del paciente">
-        
-        <label>Lugar / Consultorio:</label>
-        <select id="lugarCobro">
-            <option value="Consultorio 1">Consultorio 1</option>
-            <option value="Consultorio 2">Consultorio 2</option>
-            <option value="Tiendita">Tiendita / Venta Directa</option>
+    <div class="form-group">
+        <label>Lugar</label>
+        <select id="area">
+            <option>Consultorio 1</option><option>Consultorio 2</option><option>Espejos</option><option>Jardín</option><option>Tiendita</option>
         </select>
-
-        <label>Monto ($):</label>
-        <input type="number" id="montoCobro" placeholder="0.00">
-        
-        <button class="btn-save" onclick="registrarCobro()">💾 Registrar Cobro</button>
     </div>
-
-    <div id="listaRegistros">
-        <strong>Registros Acumulados:</strong>
-        <div id="itemsContenedor"></div>
-    </div>
-
-    <button class="btn-report" onclick="generarReporteTXT()">📥 Descargar Reporte (.txt)</button>
+    <div class="form-group"><label>Concepto (Cliente)</label><input type="text" id="concepto"></div>
+    <div class="form-group"><label>Monto ($)</label><input type="number" id="monto"></div>
+    <button id="btnAdd" class="btn-add">✅ REGISTRAR COBRO</button>
 </div>
 
-<script src="https://apis.google.com/js/api.js"></script>
+<div id="contenedorRegistros"></div>
+<button id="btnReport" class="btn-reporte">💾 DESCARGAR REPORTE</button>
+<button id="btnCorte" class="btn-corte">💰 CORTE DE CAJA</button>
+
 <script>
-    let registrosCaja = [];
-    let GoogleAuth;
+    // --- 1. CONFIGURACIÓN ---
+    const CLIENT_ID = '121923437756-b8fdp4su9es3f67ahv2vdlv916b8i5pb.apps.googleusercontent.com';
+    const API_KEY = 'AIzaSyB8iPhJMpbvUp7mQqCNBUXnkig7vV1m5RA';
+    const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest';
+    const SCOPES = 'https://www.googleapis.com/auth/calendar.readonly';
 
-    function iniciarApp() {
-        gapi.load('client:auth2', () => {
-            gapi.client.init({
-                apiKey: 'AIzaSyB8iPhJMpbvUp7mQqCNBUXnkig7vV1m5RA',
-                clientId: '121923437756-b8fdp4su9es3f67ahv2vd1v916b8i5pb.apps.googleusercontent.com',
-                discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest"],
-                scope: "https://www.googleapis.com/auth/calendar.readonly"
-            }).then(() => {
-                GoogleAuth = gapi.auth2.getAuthInstance();
-                console.log("Sistema Zárate Cien listo.");
-            }).catch(err => {
-                console.error("Error GAPI:", err);
-            });
-        });
-    }
+    let tokenClient;
+    let registros = JSON.parse(localStorage.getItem('zarate_datos')) || [];
+    let eventosCache = [];
 
-    function iniciarSesion() {
-        GoogleAuth.signIn().then(() => {
-            alert("Sesión iniciada. Ya puedes cargar el calendario.");
-        }).catch(err => {
-            console.error("Fallo de login:", err);
-        });
-    }
-
-    function cargarMovimientosMes() {
-        if (!GoogleAuth.isSignedIn.get()) return alert("Primero inicia sesión con el botón azul.");
-
-        const ahora = new Date();
-        const primerDia = new Date(ahora.getFullYear(), ahora.getMonth(), 1, 0, 0, 0).toISOString();
-        const momentoActual = ahora.toISOString();
-
-        gapi.client.calendar.events.list({
-            'calendarId': 'primary',
-            'timeMin': primerDia,
-            'timeMax': momentoActual,
-            'showDeleted': false,
-            'singleEvents': true,
-            'orderBy': 'startTime'
-        }).then(response => {
-            const eventos = response.result.items;
-            eventos.forEach(evento => {
-                const fecha = new Date(evento.start.dateTime || evento.start.date).toLocaleDateString();
-                agregarAlListado(evento.summary, 0, "Carga Mensual", fecha);
-            });
-            alert("Movimientos del mes cargados. Asigna montos para finalizar.");
-        });
-    }
-
-    function cargarCitasHoy() {
-        if (!GoogleAuth.isSignedIn.get()) return alert("Primero inicia sesión.");
+    // --- 2. LÓGICA DE INICIO ---
+    window.onload = () => {
+        actualizarInterfaz();
         
-        const hoyInicio = new Date();
-        hoyInicio.setHours(0,0,0,0);
-        const hoyFin = new Date();
-        hoyFin.setHours(23,59,59,999);
+        // Inicializar GAPI
+        gapi.load('client', async () => {
+            await gapi.client.init({ apiKey: API_KEY, discoveryDocs: [DISCOVERY_DOC] });
+        });
 
-        gapi.client.calendar.events.list({
-            'calendarId': 'primary',
-            'timeMin': hoyInicio.toISOString(),
-            'timeMax': hoyFin.toISOString(),
-            'singleEvents': true
-        }).then(response => {
-            const eventos = response.result.items;
-            if(eventos.length > 0) {
-                document.getElementById('pacienteNombre').value = eventos[0].summary;
+        // Inicializar Identidad de Google
+        tokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: CLIENT_ID,
+            scope: SCOPES,
+            callback: async (resp) => {
+                if (resp.error) return;
+                await cargarEventos();
             }
         });
+
+        // ASIGNAR CLICS DESDE AQUÍ (SIN ONCLICK EN HTML)
+        document.getElementById('btnSync').onclick = () => {
+            tokenClient.requestAccessToken({prompt: 'consent'});
+        };
+
+        document.getElementById('btnAdd').onclick = () => registrar();
+        document.getElementById('btnReport').onclick = () => descargarReporte();
+        document.getElementById('btnCorte').onclick = () => realizarCorte();
+    };
+
+    // --- 3. FUNCIONES ---
+    async function cargarEventos() {
+        const inicio = new Date(); inicio.setHours(0,0,0,0);
+        const fin = new Date(); fin.setHours(23,59,59,999);
+        try {
+            const listaCal = await gapi.client.calendar.calendarList.list();
+            let temp = [];
+            for (let cal of listaCal.result.items) {
+                const res = await gapi.client.calendar.events.list({
+                    calendarId: cal.id, timeMin: inicio.toISOString(), timeMax: fin.toISOString(), singleEvents: true
+                });
+                if (res.result.items) temp = temp.concat(res.result.items);
+            }
+            eventosCache = Array.from(new Set(temp.map(a => a.id))).map(id => temp.find(a => a.id === id));
+            renderEventos();
+        } catch (e) { alert("Error al conectar: " + e.message); }
     }
 
-    function registrarCobro() {
-        const nombre = document.getElementById('pacienteNombre').value;
-        const monto = parseFloat(document.getElementById('montoCobro').value) || 0;
-        const lugar = document.getElementById('lugarCobro').value;
-        const fecha = new Date().toLocaleDateString();
-
-        if(!nombre) return alert("Escribe un nombre");
-
-        agregarAlListado(nombre, monto, lugar, fecha);
-        document.getElementById('pacienteNombre').value = "";
-        document.getElementById('montoCobro').value = "";
+    function registrar() {
+        const conc = document.getElementById('concepto').value;
+        const mont = document.getElementById('monto').value;
+        if(!conc || !mont) return alert("Faltan datos.");
+        registros.push({
+            area: document.getElementById('area').value,
+            concepto: conc.trim(),
+            monto: parseFloat(mont),
+            fecha: new Date().toLocaleString()
+        });
+        localStorage.setItem('zarate_datos', JSON.stringify(registros));
+        actualizarInterfaz();
+        renderEventos();
+        document.getElementById('monto').value = '';
+        document.getElementById('concepto').value = '';
     }
 
-    function agregarAlListado(nombre, monto, lugar, fecha) {
-        registrosCaja.push({ nombre, monto, lugar, fecha });
-        const contenedor = document.getElementById('itemsContenedor');
-        const div = document.createElement('div');
-        div.className = 'registro-item';
-        div.innerHTML = `<span>${fecha}
+    function descargarReporte() {
+        if(registros.length === 0) return alert("No hay datos.");
+        const agrupados = {};
+        registros.forEach(r => {
+            const llave = `${r.area.toLowerCase()}-${r.concepto.toLowerCase()}`;
+            if (!agrupados[llave]) agrupados[llave] = { area: r.area, concepto: r.concepto, monto: 0 };
+            agrupados[llave].monto += r.monto;
+        });
+        let txt = `REPORTE ZÁRATE CIEN\n------------------\n`;
+        Object.values(agrupados).forEach(i => {
+            txt += `${i.area} | ${i.concepto} | $${i.monto.toFixed(2)}\n`;
+        });
+        const blob = new Blob([txt], { type: 'text/plain' });
+        const a = document.createElement('a');
+        a.href = window.URL.createObjectURL(blob);
+        a.download = `Reporte.txt`;
+        a.click();
+    }
+
+    function realizarCorte() {
+        if(confirm("¿Borrar historial de hoy?")) {
+            registros = [];
+            localStorage.removeItem('zarate_datos');
+            actualizarInterfaz();
+            renderEventos();
+        }
+    }
+
+    function renderEventos() {
+        const lista = document.getElementById('lista_eventos_google');
+        const cont = document.getElementById('contador_pendientes');
+        lista.innerHTML = '';
+        const nombresCobrados = registros.map(r => r.concepto.toLowerCase().trim());
+        let p = 0;
+        eventosCache.forEach(ev => {
+            const nombre = (ev.summary || '').toLowerCase().trim();
+            const cobrado = nombresCobrados.includes(nombre);
+            if(!cobrado) p++;
+            const div = document.createElement('div');
+            div.className = 'evento-sugerido' + (cobrado ? ' evento-cobrado' : '');
+            div.innerText = ev.summary || '(Sin título)';
+            if(!cobrado) div.onclick = () => { document.getElementById('concepto').value = ev.summary; };
+            lista.appendChild(div);
+        });
+        if(eventosCache.length > 0) {
+            document.getElementById('seccion_eventos').style.display = 'block';
+            cont.style.display = 'block';
+            cont.innerText = p > 0 ? `Faltan ${p} clientes` : "✅ Completado";
+            cont.className = 'contador-box ' + (p > 0 ? 'contador-pendiente' : 'contador-listo');
+        }
+    }
+
+    function actualizarInterfaz() {
+        const cont = document.getElementById('contenedorRegistros');
+        cont.innerHTML = registros.map(r => `
+            <div class="item-registro"><b>${r.area}</b>: ${r.concepto} | $${r.monto}</div>
+        `).reverse().join('');
+    }
+</script>
+</body>
+</html>
