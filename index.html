@@ -12,24 +12,19 @@
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 15px; }
         .card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
         h1 { font-size: 1.5rem; text-align: center; color: var(--primary); margin-top: 0; }
-        
         .contador-box { padding: 12px; border-radius: 10px; text-align: center; font-weight: bold; margin-bottom: 15px; display: none; }
         .contador-pendiente { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
         .contador-listo { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
-
         .btn-google { background: #4285F4; color: white; border: none; padding: 12px; border-radius: 10px; font-weight: bold; width: 100%; cursor: pointer; margin-bottom: 15px; display: flex; align-items: center; justify-content: center; gap: 8px; }
         .evento-sugerido { background: #fff; padding: 12px; border-radius: 10px; margin-bottom: 8px; cursor: pointer; border-left: 5px solid #4285F4; box-shadow: 0 2px 4px rgba(0,0,0,0.05); font-size: 0.9rem; transition: 0.3s; }
         .evento-cobrado { border-left-color: #ef4444 !important; color: #ef4444 !important; text-decoration: line-through; opacity: 0.5; background: #fee2e2; cursor: default; pointer-events: none; }
-
         .form-group { margin-bottom: 12px; }
         label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 5px; color: #64748b; }
         select, input { width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 10px; font-size: 16px; box-sizing: border-box; outline: none; }
-        
         button { width: 100%; padding: 15px; border-radius: 10px; border: none; font-size: 1rem; font-weight: bold; cursor: pointer; color: white; }
         .btn-add { background: var(--primary); margin-top: 10px; }
         .btn-reporte { background: #6366f1; margin-top: 15px; }
         .btn-corte { background: var(--warning); margin-top: 15px; }
-        
         .item-registro { background: #fff; padding: 12px; border-radius: 10px; margin-bottom: 10px; border-left: 5px solid var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     </style>
 </head>
@@ -38,14 +33,11 @@
 <div class="card">
     <h1>Zárate Cien</h1>
     <button class="btn-google" onclick="window.handleAuthClick()">🔗 Sincronizar Calendarios</button>
-
     <div id="contador_pendientes" class="contador-box"></div>
-
     <div id="seccion_eventos" style="display:none; margin-bottom: 20px;">
         <label>Citas de hoy:</label>
         <div id="lista_eventos_google"></div>
     </div>
-
     <div class="form-group">
         <label>Lugar</label>
         <select id="area">
@@ -58,8 +50,7 @@
 </div>
 
 <div id="contenedorRegistros"></div>
-
-<button class="btn-reporte" onclick="window.generarReporte()">💾 DESCARGAR REPORTE (.TXT)</button>
+<button class="btn-reporte" onclick="window.generarReporte()">💾 DESCARGAR REPORTE AGRUPADO</button>
 <button class="btn-corte" onclick="window.validarCorte()">💰 CORTE DE CAJA</button>
 
 <script>
@@ -115,42 +106,51 @@
             if(!conc || !mont) return alert("Llena los datos.");
             registros.push({
                 area: document.getElementById('area').value,
-                concepto: conc,
-                monto: mont,
+                concepto: conc.trim(),
+                monto: parseFloat(mont),
                 fecha: new Date().toLocaleString()
             });
             localStorage.setItem('zarate_datos', JSON.stringify(registros));
             actualizarInterfaz();
             renderEventos();
-            document.getElementById('concepto').value = '';
             document.getElementById('monto').value = '';
         };
 
         window.generarReporte = function() {
             if(registros.length === 0) return alert("No hay cobros registrados.");
             
-            const total = registros.reduce((sum, r) => sum + parseFloat(r.monto || 0), 0);
-            let txt = `REPORTE ZARATE CIEN\nFecha: ${new Date().toLocaleString()}\n\n`;
+            // LÓGICA DE AGRUPACIÓN
+            const agrupados = {};
             registros.forEach(r => {
-                txt += `[${r.area}] ${r.concepto} -> $${r.monto}\n`;
+                const clave = `${r.area}-${r.concepto}`;
+                if (!agrupados[clave]) {
+                    agrupados[clave] = { area: r.area, concepto: r.concepto, monto: 0 };
+                }
+                agrupados[clave].monto += r.monto;
             });
-            txt += `\nTOTAL DEL TURNO: $${total.toFixed(2)}`;
 
-            // LÓGICA DE DESCARGA REAL
+            const totalGeneral = registros.reduce((sum, r) => sum + r.monto, 0);
+            let txt = `REPORTE ZÁRATE CIEN - AGRUPADO\nFecha: ${new Date().toLocaleString()}\n`;
+            txt += `------------------------------------------\n`;
+            
+            Object.values(agrupados).forEach(a => {
+                txt += `LUGAR: ${a.area} | CLIENTE: ${a.concepto} | TOTAL: $${a.monto.toFixed(2)}\n`;
+            });
+            
+            txt += `------------------------------------------\n`;
+            txt += `TOTAL TURNO: $${totalGeneral.toFixed(2)}`;
+
             const blob = new Blob([txt], { type: 'text/plain' });
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `Reporte_Zarate_${new Date().toLocaleDateString().replace(/\//g, '-')}.txt`;
-            document.body.appendChild(a);
+            a.download = `Reporte_Agrupado_${new Date().toLocaleDateString().replace(/\//g, '-')}.txt`;
             a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
         };
 
         window.validarCorte = function() {
-            const total = registros.reduce((sum, r) => sum + parseFloat(r.monto || 0), 0);
-            if(confirm(`Total: $${total.toFixed(2)}\n¿Cerrar turno y borrar historial?`)) {
+            const total = registros.reduce((sum, r) => sum + r.monto, 0);
+            if(confirm(`Corte: $${total.toFixed(2)}\n¿Cerrar turno?`)) {
                 registros = [];
                 localStorage.removeItem('zarate_datos');
                 actualizarInterfaz();
@@ -163,7 +163,7 @@
         const lista = document.getElementById('lista_eventos_google');
         const cont = document.getElementById('contador_pendientes');
         lista.innerHTML = '';
-        const nombresCobrados = registros.map(r => r.concepto.toLowerCase().trim());
+        const nombresCobrados = registros.map(r => r.concepto.toLowerCase());
         
         let pendientes = 0;
         eventosCache.forEach(ev => {
@@ -181,7 +181,7 @@
         if(eventosCache.length > 0) {
             document.getElementById('seccion_eventos').style.display = 'block';
             cont.style.display = 'block';
-            cont.innerText = pendientes > 0 ? `Faltan ${pendientes} clientes por cobrar` : "✅ ¡Día completado!";
+            cont.innerText = pendientes > 0 ? `Faltan ${pendientes} clientes` : "✅ Completado";
             cont.className = 'contador-box ' + (pendientes > 0 ? 'contador-pendiente' : 'contador-listo');
         }
     }
