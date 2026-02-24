@@ -3,23 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Zárate Cien - Control de Caja Mensual</title>
+    <title>Zárate Cien - Control de Caja Total</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; background-color: #f0f2f5; color: #333; }
+        body { font-family: 'Segoe UI', sans-serif; margin: 20px; background-color: #f4f4f9; }
         .container { max-width: 600px; margin: auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        h2 { color: #1a2a3a; text-align: center; margin-bottom: 25px; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
-        .section { margin-bottom: 20px; padding: 15px; background: #fdfdfd; border: 1px solid #e0e0e0; border-radius: 8px; }
+        h2 { color: #1a2a3a; text-align: center; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        .section { margin-bottom: 20px; padding: 15px; background: #fff; border: 1px solid #ddd; border-radius: 8px; }
         button { width: 100%; padding: 12px; margin-top: 10px; cursor: pointer; border: none; border-radius: 6px; font-weight: bold; transition: 0.3s; }
+        .btn-auth { background-color: #4285F4; color: white; }
         .btn-today { background-color: #3498db; color: white; }
-        .btn-month { background-color: #2c3e50; color: white; border: 1px solid #1a2a3a; }
-        .btn-save { background-color: #27ae60; color: white; font-size: 1.1em; }
+        .btn-month { background-color: #2c3e50; color: white; }
+        .btn-save { background-color: #27ae60; color: white; }
         .btn-report { background-color: #e67e22; color: white; margin-top: 20px; }
-        button:hover { opacity: 0.9; transform: translateY(-1px); }
-        label { display: block; margin-top: 10px; font-weight: 600; font-size: 0.9em; color: #555; }
         input, select { width: 100%; padding: 10px; margin: 5px 0 15px 0; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; }
-        #listaRegistros { margin-top: 25px; background: #fff; }
-        .registro-item { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #eee; font-size: 0.85em; align-items: center; }
-        .tag-fecha { background: #eee; padding: 2px 6px; border-radius: 4px; color: #666; font-size: 0.8em; margin-right: 8px; }
+        #itemsContenedor { margin-top: 20px; }
+        .registro-item { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #eee; font-size: 0.85em; }
     </style>
 </head>
 <body>
@@ -28,13 +26,18 @@
     <h2>Zárate Cien: Gestión de Cobros</h2>
 
     <div class="section">
+        <p style="font-size: 0.8em; color: #666; text-align: center;">Paso 1: Conecta tu cuenta para evitar errores 404</p>
+        <button class="btn-auth" onclick="iniciarSesion()">🔑 Iniciar Sesión con Google</button>
+    </div>
+
+    <div class="section">
         <button class="btn-today" onclick="cargarCitasHoy()">📅 Cargar Citas de Hoy</button>
         <button class="btn-month" onclick="cargarMovimientosMes()">📊 Cargar Movimientos del Mes</button>
     </div>
 
     <div class="section">
         <label>Paciente / Concepto:</label>
-        <input type="text" id="pacienteNombre" placeholder="Nombre detectado o manual">
+        <input type="text" id="pacienteNombre" placeholder="Nombre del paciente">
         
         <label>Lugar / Consultorio:</label>
         <select id="lugarCobro">
@@ -43,52 +46,76 @@
             <option value="Tiendita">Tiendita / Venta Directa</option>
         </select>
 
-        <label>Monto a Cobrar ($):</label>
-        <input type="number" id="montoCobro" placeholder="0.00" step="0.01">
+        <label>Monto ($):</label>
+        <input type="number" id="montoCobro" placeholder="0.00">
         
         <button class="btn-save" onclick="registrarCobro()">💾 Registrar Cobro</button>
     </div>
 
     <div id="listaRegistros">
-        <strong>Historial de Registros (Febrero):</strong>
+        <strong>Registros Acumulados:</strong>
         <div id="itemsContenedor"></div>
     </div>
 
-    <button class="btn-report" onclick="generarReporteTXT()">📥 Descargar Reporte Mensual (.txt)</button>
+    <button class="btn-report" onclick="generarReporteTXT()">📥 Descargar Reporte (.txt)</button>
 </div>
 
 <script src="https://apis.google.com/js/api.js"></script>
 <script>
     let registrosCaja = [];
+    let GoogleAuth;
 
-    // --- SUBRUTINA DE CARGA MENSUAL ---
+    function iniciarApp() {
+        gapi.load('client:auth2', () => {
+            gapi.client.init({
+                apiKey: 'AIzaSyB8iPhJMpbvUp7mQqCNBUXnkig7vV1m5RA',
+                clientId: '121923437756-b8fdp4su9es3f67ahv2vd1v916b8i5pb.apps.googleusercontent.com',
+                discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest"],
+                scope: "https://www.googleapis.com/auth/calendar.readonly"
+            }).then(() => {
+                GoogleAuth = gapi.auth2.getAuthInstance();
+                console.log("Sistema Zárate Cien listo.");
+            }).catch(err => {
+                console.error("Error GAPI:", err);
+            });
+        });
+    }
+
+    function iniciarSesion() {
+        GoogleAuth.signIn().then(() => {
+            alert("Sesión iniciada. Ya puedes cargar el calendario.");
+        }).catch(err => {
+            console.error("Fallo de login:", err);
+        });
+    }
+
     function cargarMovimientosMes() {
+        if (!GoogleAuth.isSignedIn.get()) return alert("Primero inicia sesión con el botón azul.");
+
         const ahora = new Date();
         const primerDia = new Date(ahora.getFullYear(), ahora.getMonth(), 1, 0, 0, 0).toISOString();
         const momentoActual = ahora.toISOString();
 
         gapi.client.calendar.events.list({
-            'calendarId': 'primary', // Se jala del calendario principal
+            'calendarId': 'primary',
             'timeMin': primerDia,
             'timeMax': momentoActual,
             'showDeleted': false,
             'singleEvents': true,
             'orderBy': 'startTime'
-        }).then(function(response) {
+        }).then(response => {
             const eventos = response.result.items;
-            if (eventos.length > 0) {
-                eventos.forEach(evento => {
-                    const fecha = new Date(evento.start.dateTime || evento.start.date).toLocaleDateString();
-                    // Cargamos los eventos con monto 0 para que tú los valides
-                    agregarAlListado(evento.summary, 0, "Carga Histórica", fecha);
-                });
-                alert("Se han importado " + eventos.length + " citas de febrero. Asígnale precio a las que faltan para cuadrar tu caja.");
-            }
+            eventos.forEach(evento => {
+                const fecha = new Date(evento.start.dateTime || evento.start.date).toLocaleDateString();
+                agregarAlListado(evento.summary, 0, "Carga Mensual", fecha);
+            });
+            alert("Movimientos del mes cargados. Asigna montos para finalizar.");
         });
     }
 
-    // --- FUNCIONES CORE (DÍA A DÍA) ---
     function cargarCitasHoy() {
+        if (!GoogleAuth.isSignedIn.get()) return alert("Primero inicia sesión.");
+        
         const hoyInicio = new Date();
         hoyInicio.setHours(0,0,0,0);
         const hoyFin = new Date();
@@ -99,7 +126,7 @@
             'timeMin': hoyInicio.toISOString(),
             'timeMax': hoyFin.toISOString(),
             'singleEvents': true
-        }).then(function(response) {
+        }).then(response => {
             const eventos = response.result.items;
             if(eventos.length > 0) {
                 document.getElementById('pacienteNombre').value = eventos[0].summary;
@@ -113,10 +140,9 @@
         const lugar = document.getElementById('lugarCobro').value;
         const fecha = new Date().toLocaleDateString();
 
-        if(!nombre) return alert("El nombre es obligatorio");
+        if(!nombre) return alert("Escribe un nombre");
 
         agregarAlListado(nombre, monto, lugar, fecha);
-        
         document.getElementById('pacienteNombre').value = "";
         document.getElementById('montoCobro').value = "";
     }
@@ -126,46 +152,4 @@
         const contenedor = document.getElementById('itemsContenedor');
         const div = document.createElement('div');
         div.className = 'registro-item';
-        div.innerHTML = `<div><span class="tag-fecha">${fecha}</span><b>${nombre}</b> <small>(${lugar})</small></div> <span>$${monto.toFixed(2)}</span>`;
-        contenedor.prepend(div); // El más nuevo sale arriba
-    }
-
-    function generarReporteTXT() {
-        if(registrosCaja.length === 0) return alert("Nada que reportar");
-
-        let texto = "ZÁRATE CIEN - REPORTE DE MOVIMIENTOS\n";
-        texto += "Periodo: 01-Feb al " + new Date().toLocaleDateString() + "\n";
-        texto += "===========================================\n\n";
-        
-        let total = 0;
-        registrosCaja.forEach(r => {
-            texto += `[${r.fecha}] ${r.lugar.padEnd(15)} | ${r.nombre.padEnd(20)}: $${r.monto.toFixed(2)}\n`;
-            total += r.monto;
-        });
-
-        texto += "\n===========================================\n";
-        texto += `TOTAL EN CAJA: $${total.toFixed(2)}\n`;
-
-        const blob = new Blob([texto], { type: 'text/plain' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `Corte_Caja_ZarateCien_Feb2026.txt`;
-        link.click();
-    }
-
-    // --- INICIALIZACIÓN (PON TUS DATOS AQUÍ) ---
-    function iniciarApp() {
-        gapi.load('client:auth2', () => {
-            gapi.client.init({
-                apiKey: 'AIzaSyB8iPhJMpbvUp7mQqCNBUXnkig7vV1m5RA',
-                clientId: '121923437756-b8fdp4su9es3f67ahv2vdlv916b8i5pb.apps.googleusercontent.com',
-                discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest"],
-                scope: "https://www.googleapis.com/auth/calendar.readonly"
-            });
-        });
-    }
-    iniciarApp();
-</script>
-
-</body>
-</html>
+        div.innerHTML = `<span>${fecha}
