@@ -28,8 +28,6 @@
         .tag-cal { background: var(--primary); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.6rem; text-transform: uppercase; }
         #tablaResumen { margin-top: 10px; font-size: 0.85rem; width: 100%; border-collapse: collapse; display: none; background: #f0f7ff; border-radius: 10px; }
         #tablaResumen td { padding: 8px; border-bottom: 1px solid #dbeafe; }
-        
-        /* Modal Instrucciones */
         #modalInstrucciones { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); }
         .modal-content { background: white; margin: 15% auto; padding: 25px; border-radius: 20px; width: 85%; max-width: 400px; }
     </style>
@@ -38,20 +36,14 @@
 
 <div id="modalInstrucciones">
     <div class="modal-content">
-        <h2 style="color:var(--primary); margin-top:0;">🚀 ¡Respaldo Creado!</h2>
-        <p style="font-size:0.9rem; line-height:1.4;">Para usarlo en un <b>equipo nuevo</b>:</p>
-        <ol style="font-size:0.85rem; padding-left:20px;">
-            <li>Envía el archivo descargado al nuevo celular (WhatsApp/Mail).</li>
-            <li>En el nuevo celular, abre Zárate Cien.</li>
-            <li>Presiona <b>"Subir Respaldo"</b> (al final de la página).</li>
-            <li>Selecciona el archivo y ¡listo! Toda tu historia aparecerá.</li>
-        </ol>
+        <h2 style="color:var(--primary); margin-top:0;">🚀 Respaldo Creado</h2>
+        <p style="font-size:0.9rem;">Para el <b>equipo nuevo</b>: Abre la app allá, presiona "Elegir archivo" abajo y selecciona este respaldo.</p>
         <button onclick="document.getElementById('modalInstrucciones').style.display='none'" style="background:var(--success); margin-top:10px;">Entendido</button>
     </div>
 </div>
 
 <div class="nav-temporal">
-    <label>📅 Navegar a Fecha:</label>
+    <label>📅 Fecha:</label>
     <input type="date" id="fechaNavegador" onchange="cambiarFecha()">
     <div style="margin-top:15px; border-top: 1px solid #eee; padding-top:10px;">
         <label>📊 Utilidad Mensual:</label>
@@ -64,150 +56,134 @@
 </div>
 
 <div class="card">
-    <h1 id="tituloFecha">CARGANDO...</h1>
+    <h1 id="tituloFecha">...</h1>
     <button id="btnSync" style="background:#4285F4; font-size:0.9rem; padding:10px;" class="btn-add">🔗 Sincronizar Calendarios</button>
     <div id="seccion_eventos" style="display:none; margin-bottom:20px;">
+        <label id="txt_pendientes">Citas:</label>
         <div id="lista_eventos_google"></div>
     </div>
 
     <div class="form-group">
-        <label>Tipo de Movimiento</label>
+        <label>Movimiento</label>
         <select id="tipoMov" onchange="ajustarFormulario()">
-            <option value="ingreso">🟢 Ingreso (Cobro)</option>
-            <option value="gasto">🔴 Gasto (Salida)</option>
+            <option value="ingreso">🟢 Ingreso</option>
+            <option value="gasto">🔴 Gasto</option>
         </select>
     </div>
-
     <div id="grupoArea" class="form-group">
-        <label>Lugar/Área</label>
+        <label>Área</label>
         <select id="area">
-            <option>Consultorio 1</option><option>Consultorio 2</option><option>Salón espejos</option><option>Jardín</option><option>Tiendita</option>
+            <option>Consultorio 1</option><option>Consultorio 2</option><option>Salón espejos</option><option>Jardín</option><option>Cocina</option><option>Tiendita</option>
         </select>
     </div>
-
-    <div class="form-group"><label id="labelConcepto">Concepto / Cliente</label><input type="text" id="concepto"></div>
+    <div class="form-group"><label id="labelConcepto">Concepto</label><input type="text" id="concepto"></div>
     <div class="form-group"><label>Monto ($)</label><input type="number" id="monto"></div>
-    <button id="btnPrincipal" onclick="registrar()" class="btn-add">✅ REGISTRAR</button>
+    <button id="btnPrincipal" onclick="registrar()" class="btn-add">✅ REGISTRAR COBRO</button>
 </div>
 
 <div id="contenedorRegistros"></div>
-<button onclick="realizarCorte()" class="btn-corte">💰 CORTE DEL DÍA (TXT)</button>
+<button onclick="realizarCorte()" class="btn-corte">💰 CORTE DEL DÍA</button>
 
 <div style="margin-top:30px; border-top:2px dashed #ccc; padding-top:20px;">
-    <button onclick="descargarRespaldoTotal()" class="btn-respaldo">💾 DESCARGAR RESPALDO TOTAL (.JSON)</button>
-    <label style="font-size:0.7rem; color:#666; text-align:center; display:block; margin-bottom:5px;">¿Cambiaste de equipo? Sube tu respaldo aquí:</label>
+    <button onclick="descargarRespaldoTotal()" class="btn-respaldo">💾 RESPALDO TOTAL (.JSON)</button>
     <input type="file" id="importFile" onchange="importarRespaldo(this)" style="font-size:0.7rem;">
 </div>
 
 <script>
     const CLIENT_ID = '121923437756-b8fdp4su9es3f67ahv2vdlv916b8i5pb.apps.googleusercontent.com';
     const API_KEY = 'AIzaSyB8iPhJMpbvUp7mQqCNBUXnkig7vV1m5RA';
-    
     let fechaActual = new Date().toISOString().split('T')[0];
     let registros = [];
+    let eventosGoogle = []; 
     let tokenClient;
 
     window.onload = () => {
         const hoy = new Date().toISOString().split('T')[0];
-        document.getElementById('fechaNavegador').max = hoy;
-        document.getElementById('mesReporte').max = hoy.substring(0, 7);
         document.getElementById('fechaNavegador').value = hoy;
         document.getElementById('mesReporte').value = hoy.substring(0, 7);
         cargarDia();
-
         gapi.load('client', async () => {
             await gapi.client.init({ apiKey: API_KEY, discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest'] });
         });
-
         tokenClient = google.accounts.oauth2.initTokenClient({
             client_id: CLIENT_ID, scope: 'https://www.googleapis.com/auth/calendar.readonly',
             callback: async (resp) => { if (!resp.error) await cargarMultiplesCalendarios(); }
         });
-
         document.getElementById('btnSync').onclick = () => tokenClient.requestAccessToken({prompt: 'consent'});
     };
 
-    // --- FUNCIONES DE RESPALDO ---
-    function descargarRespaldoTotal() {
-        let backup = {};
-        for (let i = 0; i < localStorage.length; i++) {
-            let key = localStorage.key(i);
-            if (key.startsWith('zarate_')) {
-                backup[key] = localStorage.getItem(key);
-            }
-        }
-        const blob = new Blob([JSON.stringify(backup)], {type: 'application/json'});
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `Respaldo_ZarateCien_${new Date().toISOString().split('T')[0]}.json`;
-        a.click();
-        document.getElementById('modalInstrucciones').style.display = 'block';
-    }
-
-    function importarRespaldo(input) {
-        const file = input.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            try {
-                const data = JSON.parse(e.target.result);
-                Object.keys(data).forEach(key => localStorage.setItem(key, data[key]));
-                alert("✅ ¡Base de datos restaurada con éxito! La página se recargará.");
-                location.reload();
-            } catch (err) { alert("❌ Error: El archivo no es un respaldo válido."); }
-        };
-        reader.readAsText(file);
-    }
-
-    // --- LÓGICA DE REGISTROS ---
     async function cargarMultiplesCalendarios() {
         const inicio = new Date(fechaActual + "T00:00:00").toISOString();
         const fin = new Date(fechaActual + "T23:59:59").toISOString();
         try {
             const listaCal = await gapi.client.calendar.calendarList.list();
-            const listaHTML = document.getElementById('lista_eventos_google');
-            listaHTML.innerHTML = '';
-            let huboEventos = false;
+            eventosGoogle = [];
             for (const cal of listaCal.result.items) {
                 const res = await gapi.client.calendar.events.list({ calendarId: cal.id, timeMin: inicio, timeMax: fin, singleEvents: true });
-                if (res.result.items.length > 0) {
-                    huboEventos = true;
-                    res.result.items.forEach(ev => {
-                        const d = document.createElement('div');
-                        d.className = 'evento-sugerido';
-                        d.innerHTML = `<span>${ev.summary}</span> <span class="tag-cal">${cal.summary}</span>`;
-                        d.onclick = () => {
-                            document.getElementById('tipoMov').value = 'ingreso'; ajustarFormulario();
-                            document.getElementById('concepto').value = ev.summary;
-                            const selector = document.getElementById('area');
-                            for (let i = 0; i < selector.options.length; i++) {
-                                if (cal.summary.toLowerCase().includes(selector.options[i].text.toLowerCase().substring(0,5))) {
-                                    selector.selectedIndex = i; break;
-                                }
-                            }
-                        };
-                        listaHTML.appendChild(d);
-                    });
+                if (res.result.items) {
+                    res.result.items.forEach(ev => eventosGoogle.push({...ev, calName: cal.summary}));
                 }
             }
-            document.getElementById('seccion_eventos').style.display = huboEventos ? 'block' : 'none';
+            renderizarSugerencias();
         } catch (e) { alert("Error: " + e.message); }
     }
 
-    function ajustarFormulario() {
-        const tipo = document.getElementById('tipoMov').value;
-        const btn = document.getElementById('btnPrincipal');
-        const grupoArea = document.getElementById('grupoArea');
-        btn.innerText = tipo === 'gasto' ? "🔴 REGISTRAR GASTO" : "✅ REGISTRAR COBRO";
-        btn.className = tipo === 'gasto' ? "btn-gasto" : "btn-add";
-        grupoArea.style.display = tipo === 'gasto' ? "none" : "block";
+    // --- LA FUNCIÓN QUE LIMPIA LA LISTA ---
+    function renderizarSugerencias() {
+        const listaHTML = document.getElementById('lista_eventos_google');
+        listaHTML.innerHTML = '';
+        // Obtenemos todos los nombres que YA fueron cobrados hoy
+        const cobrados = registros.map(r => (r.concepto || "").toLowerCase().trim());
+        
+        let pendientes = 0;
+        eventosGoogle.forEach(ev => {
+            const nombreEv = (ev.summary || "").toLowerCase().trim();
+            // Solo mostramos si NO está en la lista de cobrados
+            if (!cobrados.includes(nombreEv)) {
+                pendientes++;
+                const d = document.createElement('div');
+                d.className = 'evento-sugerido';
+                d.innerHTML = `<span>${ev.summary}</span> <span class="tag-cal">${ev.calName}</span>`;
+                d.onclick = () => {
+                    document.getElementById('tipoMov').value = 'ingreso'; ajustarFormulario();
+                    document.getElementById('concepto').value = ev.summary;
+                    const selector = document.getElementById('area');
+                    for (let i = 0; i < selector.options.length; i++) {
+                        if (ev.calName.toLowerCase().includes(selector.options[i].text.toLowerCase().substring(0,5))) {
+                            selector.selectedIndex = i; break;
+                        }
+                    }
+                };
+                listaHTML.appendChild(d);
+            }
+        });
+        document.getElementById('seccion_eventos').style.display = (eventosGoogle.length > 0) ? 'block' : 'none';
+        document.getElementById('txt_pendientes').innerText = pendientes > 0 ? `Citas pendientes (${pendientes}):` : "✅ ¡Todo cobrado!";
     }
 
-    function cambiarFecha() {
-        fechaActual = document.getElementById('fechaNavegador').value;
-        cargarDia();
-        document.getElementById('seccion_eventos').style.display = 'none';
-        document.getElementById('tablaResumen').style.display = 'none';
+    function registrar() {
+        const m = document.getElementById('monto').value;
+        const c = document.getElementById('concepto').value;
+        if(!m || !c) return alert("Faltan datos");
+        registros.push({
+            id: Date.now(), tipo: document.getElementById('tipoMov').value,
+            area: document.getElementById('tipoMov').value === 'ingreso' ? document.getElementById('area').value : 'GASTO',
+            concepto: c.trim(), monto: parseFloat(m),
+            hora: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+        });
+        localStorage.setItem(`zarate_${fechaActual}`, JSON.stringify(registros));
+        document.getElementById('monto').value = ''; document.getElementById('concepto').value = '';
+        actualizarLista();
+        renderizarSugerencias(); // Actualizar lista de citas al instante
+    }
+
+    function borrarRegistro(id) {
+        if(confirm("¿Borrar movimiento?")) {
+            registros = registros.filter(r => r.id !== id);
+            localStorage.setItem(`zarate_${fechaActual}`, JSON.stringify(registros));
+            actualizarLista();
+            renderizarSugerencias(); // Si borras un cobro, la cita vuelve a aparecer arriba
+        }
     }
 
     function cargarDia() {
@@ -216,74 +192,57 @@
         registros = JSON.parse(localStorage.getItem(`zarate_${fechaActual}`)) || [];
         actualizarLista();
     }
-
-    function registrar() {
-        const m = document.getElementById('monto').value;
-        const c = document.getElementById('concepto').value;
-        const tipo = document.getElementById('tipoMov').value;
-        if(!m || !c) return alert("Faltan datos");
-        registros.push({
-            id: Date.now(), tipo: tipo,
-            area: tipo === 'ingreso' ? document.getElementById('area').value : 'GASTO',
-            concepto: c.trim(), monto: parseFloat(m),
-            hora: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
-        });
-        localStorage.setItem(`zarate_${fechaActual}`, JSON.stringify(registros));
-        document.getElementById('monto').value = ''; document.getElementById('concepto').value = '';
-        actualizarLista();
+    
+    function cambiarFecha() { fechaActual = document.getElementById('fechaNavegador').value; cargarDia(); document.getElementById('seccion_eventos').style.display = 'none'; }
+    function ajustarFormulario() {
+        const t = document.getElementById('tipoMov').value;
+        document.getElementById('btnPrincipal').innerText = t === 'gasto' ? "🔴 REGISTRAR GASTO" : "✅ REGISTRAR COBRO";
+        document.getElementById('btnPrincipal').className = t === 'gasto' ? "btn-gasto" : "btn-add";
+        document.getElementById('grupoArea').style.display = t === 'gasto' ? "none" : "block";
     }
-
-    function borrarRegistro(id) {
-        if(confirm("¿Borrar este movimiento?")) {
-            registros = registros.filter(r => r.id !== id);
-            localStorage.setItem(`zarate_${fechaActual}`, JSON.stringify(registros));
-            actualizarLista();
-        }
-    }
-
     function actualizarLista() {
-        const cont = document.getElementById('contenedorRegistros');
-        cont.innerHTML = registros.map(r => `
+        document.getElementById('contenedorRegistros').innerHTML = registros.map(r => `
             <div class="item-registro ${r.tipo === 'gasto' ? 'tipo-gasto' : ''}">
                 <div><b>${r.area}</b><br><small>${r.concepto}</small></div>
-                <div style="text-align:right">
-                    <b>${r.tipo === 'gasto' ? '-' : ''}$${r.monto}</b><br>
-                    <button class="btn-del" onclick="borrarRegistro(${r.id})">Eliminar</button>
-                </div>
-            </div>
-        `).reverse().join('') || '<p style="text-align:center;color:#94a3b8">Sin registros</p>';
+                <div style="text-align:right"><b>${r.tipo === 'gasto' ? '-' : ''}$${r.monto}</b><br>
+                <button class="btn-del" onclick="borrarRegistro(${r.id})">X</button></div>
+            </div>`).reverse().join('') || '<p style="text-align:center;color:#94a3b8">Sin registros</p>';
     }
-
     function generarResumenMensual() {
-        const mesSel = document.getElementById('mesReporte').value;
-        let ing = 0, gas = 0, areas = {};
+        const mes = document.getElementById('mesReporte').value; let ing = 0, gas = 0, areas = {};
         for (let i = 0; i < localStorage.length; i++) {
-            const clave = localStorage.key(i);
-            if (clave.startsWith(`zarate_${mesSel}`)) {
-                JSON.parse(localStorage.getItem(clave)).forEach(r => {
+            const k = localStorage.key(i);
+            if (k.startsWith(`zarate_${mes}`)) {
+                JSON.parse(localStorage.getItem(k)).forEach(r => {
                     if(r.tipo === 'gasto') gas += r.monto;
                     else { ing += r.monto; areas[r.area] = (areas[r.area] || 0) + r.monto; }
                 });
             }
         }
-        if(ing === 0 && gas === 0) return alert("No hay datos para " + mesSel);
-        const tabla = document.getElementById('tablaResumen');
-        tabla.style.display = 'table';
-        let html = `<tr><td><b>Ingresos:</b></td><td style="color:var(--success)">$${ing.toFixed(2)}</td></tr>`;
-        for (const [a, s] of Object.entries(areas)) html += `<tr><td style="padding-left:15px; font-size:0.75rem;">└ ${a}</td><td style="font-size:0.75rem;">$${s.toFixed(2)}</td></tr>`;
-        html += `<tr><td><b>Gastos:</b></td><td style="color:var(--danger)">-$${gas.toFixed(2)}</td></tr>`;
-        html += `<tr style="border-top:2px solid #333"><td><b>UTILIDAD:</b></td><td style="font-weight:bold">$${(ing-gas).toFixed(2)}</td></tr>`;
-        tabla.innerHTML = html;
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(new Blob([`RESUMEN ${mesSel}\nUTILIDAD: $${ing-gas}`], {type:'text/plain'}));
-        a.download = `Resumen_${mesSel}.txt`; a.click();
+        if(ing === 0 && gas === 0) return alert("No hay datos");
+        const t = document.getElementById('tablaResumen'); t.style.display = 'table';
+        let h = `<tr><td>Ingresos</td><td style="color:var(--success)">$${ing}</td></tr>`;
+        for (const [a, s] of Object.entries(areas)) h += `<tr><td style="font-size:0.7rem; padding-left:15px;">└ ${a}</td><td>$${s}</td></tr>`;
+        h += `<tr><td>Gastos</td><td style="color:var(--danger)">-$${gas}</td></tr><tr style="font-weight:bold"><td>UTILIDAD</td><td>$${ing-gas}</td></tr>`;
+        t.innerHTML = h;
     }
-
     function realizarCorte() {
         let t = registros.reduce((a,b) => a + (b.tipo==='ingreso'?b.monto:-b.monto), 0);
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(new Blob([`CORTE ${fechaActual}\nTOTAL: $${t}`], {type:'text/plain'}));
+        const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([`CORTE ${fechaActual}\nNETO: $${t}`], {type:'text/plain'}));
         a.download = `Corte_${fechaActual}.txt`; a.click();
+    }
+    function descargarRespaldoTotal() {
+        let b = {}; for (let i = 0; i < localStorage.length; i++) {
+            let k = localStorage.key(i); if (k.startsWith('zarate_')) b[k] = localStorage.getItem(k);
+        }
+        const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(b)], {type: 'application/json'}));
+        a.download = `Respaldo_ZarateCien.json`; a.click(); document.getElementById('modalInstrucciones').style.display = 'block';
+    }
+    function importarRespaldo(i) {
+        const r = new FileReader(); r.onload = (e) => {
+            const d = JSON.parse(e.target.result); Object.keys(d).forEach(k => localStorage.setItem(k, d[k]));
+            alert("Restaurado. Reiniciando..."); location.reload();
+        }; r.readAsText(i.files[0]);
     }
 </script>
 </body>
