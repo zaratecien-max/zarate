@@ -20,14 +20,35 @@
         .btn-gasto { background: var(--danger); }
         .btn-resumen { background: #6366f1; }
         .btn-corte { background: var(--warning); }
+        .btn-respaldo { background: #475569; font-size: 0.8rem; padding: 10px; }
         .item-registro { background: white; padding: 12px; border-radius: 10px; margin-bottom: 8px; border-left: 5px solid var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.05); font-size: 0.9rem; display: flex; justify-content: space-between; align-items: center; }
         .tipo-gasto { border-left-color: var(--danger); }
         .btn-del { background: #fee2e2; color: #ef4444; padding: 5px 10px; border-radius: 8px; font-size: 0.8rem; width: auto; margin: 0; }
         .evento-sugerido { background: #f1f5f9; padding: 10px; border-radius: 8px; margin-bottom: 5px; font-size: 0.8rem; cursor: pointer; border: 1px solid #cbd5e1; display: flex; justify-content: space-between; }
         .tag-cal { background: var(--primary); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.6rem; text-transform: uppercase; }
+        #tablaResumen { margin-top: 10px; font-size: 0.85rem; width: 100%; border-collapse: collapse; display: none; background: #f0f7ff; border-radius: 10px; }
+        #tablaResumen td { padding: 8px; border-bottom: 1px solid #dbeafe; }
+        
+        /* Modal Instrucciones */
+        #modalInstrucciones { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); }
+        .modal-content { background: white; margin: 15% auto; padding: 25px; border-radius: 20px; width: 85%; max-width: 400px; }
     </style>
 </head>
 <body>
+
+<div id="modalInstrucciones">
+    <div class="modal-content">
+        <h2 style="color:var(--primary); margin-top:0;">🚀 ¡Respaldo Creado!</h2>
+        <p style="font-size:0.9rem; line-height:1.4;">Para usarlo en un <b>equipo nuevo</b>:</p>
+        <ol style="font-size:0.85rem; padding-left:20px;">
+            <li>Envía el archivo descargado al nuevo celular (WhatsApp/Mail).</li>
+            <li>En el nuevo celular, abre Zárate Cien.</li>
+            <li>Presiona <b>"Subir Respaldo"</b> (al final de la página).</li>
+            <li>Selecciona el archivo y ¡listo! Toda tu historia aparecerá.</li>
+        </ol>
+        <button onclick="document.getElementById('modalInstrucciones').style.display='none'" style="background:var(--success); margin-top:10px;">Entendido</button>
+    </div>
+</div>
 
 <div class="nav-temporal">
     <label>📅 Navegar a Fecha:</label>
@@ -38,14 +59,14 @@
             <input type="month" id="mesReporte">
             <button onclick="generarResumenMensual()" style="padding:10px; width:auto; margin:0;" class="btn-resumen">Calcular</button>
         </div>
+        <table id="tablaResumen"></table>
     </div>
 </div>
 
 <div class="card">
     <h1 id="tituloFecha">CARGANDO...</h1>
-    <button id="btnSync" style="background:#4285F4; font-size:0.9rem; padding:10px;" class="btn-add">🔗 Sincronizar todos los Calendarios</button>
+    <button id="btnSync" style="background:#4285F4; font-size:0.9rem; padding:10px;" class="btn-add">🔗 Sincronizar Calendarios</button>
     <div id="seccion_eventos" style="display:none; margin-bottom:20px;">
-        <label>Citas detectadas:</label>
         <div id="lista_eventos_google"></div>
     </div>
 
@@ -71,6 +92,12 @@
 
 <div id="contenedorRegistros"></div>
 <button onclick="realizarCorte()" class="btn-corte">💰 CORTE DEL DÍA (TXT)</button>
+
+<div style="margin-top:30px; border-top:2px dashed #ccc; padding-top:20px;">
+    <button onclick="descargarRespaldoTotal()" class="btn-respaldo">💾 DESCARGAR RESPALDO TOTAL (.JSON)</button>
+    <label style="font-size:0.7rem; color:#666; text-align:center; display:block; margin-bottom:5px;">¿Cambiaste de equipo? Sube tu respaldo aquí:</label>
+    <input type="file" id="importFile" onchange="importarRespaldo(this)" style="font-size:0.7rem;">
+</div>
 
 <script>
     const CLIENT_ID = '121923437756-b8fdp4su9es3f67ahv2vdlv916b8i5pb.apps.googleusercontent.com';
@@ -100,47 +127,71 @@
         document.getElementById('btnSync').onclick = () => tokenClient.requestAccessToken({prompt: 'consent'});
     };
 
+    // --- FUNCIONES DE RESPALDO ---
+    function descargarRespaldoTotal() {
+        let backup = {};
+        for (let i = 0; i < localStorage.length; i++) {
+            let key = localStorage.key(i);
+            if (key.startsWith('zarate_')) {
+                backup[key] = localStorage.getItem(key);
+            }
+        }
+        const blob = new Blob([JSON.stringify(backup)], {type: 'application/json'});
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `Respaldo_ZarateCien_${new Date().toISOString().split('T')[0]}.json`;
+        a.click();
+        document.getElementById('modalInstrucciones').style.display = 'block';
+    }
+
+    function importarRespaldo(input) {
+        const file = input.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = JSON.parse(e.target.result);
+                Object.keys(data).forEach(key => localStorage.setItem(key, data[key]));
+                alert("✅ ¡Base de datos restaurada con éxito! La página se recargará.");
+                location.reload();
+            } catch (err) { alert("❌ Error: El archivo no es un respaldo válido."); }
+        };
+        reader.readAsText(file);
+    }
+
+    // --- LÓGICA DE REGISTROS ---
     async function cargarMultiplesCalendarios() {
         const inicio = new Date(fechaActual + "T00:00:00").toISOString();
         const fin = new Date(fechaActual + "T23:59:59").toISOString();
-        
         try {
             const listaCal = await gapi.client.calendar.calendarList.list();
             const listaHTML = document.getElementById('lista_eventos_google');
             listaHTML.innerHTML = '';
             let huboEventos = false;
-
             for (const cal of listaCal.result.items) {
-                const res = await gapi.client.calendar.events.list({
-                    calendarId: cal.id, timeMin: inicio, timeMax: fin, singleEvents: true
-                });
-
+                const res = await gapi.client.calendar.events.list({ calendarId: cal.id, timeMin: inicio, timeMax: fin, singleEvents: true });
                 if (res.result.items.length > 0) {
                     huboEventos = true;
                     res.result.items.forEach(ev => {
                         const d = document.createElement('div');
                         d.className = 'evento-sugerido';
                         d.innerHTML = `<span>${ev.summary}</span> <span class="tag-cal">${cal.summary}</span>`;
-                        d.onclick = () => autoCompletar(ev.summary, cal.summary);
+                        d.onclick = () => {
+                            document.getElementById('tipoMov').value = 'ingreso'; ajustarFormulario();
+                            document.getElementById('concepto').value = ev.summary;
+                            const selector = document.getElementById('area');
+                            for (let i = 0; i < selector.options.length; i++) {
+                                if (cal.summary.toLowerCase().includes(selector.options[i].text.toLowerCase().substring(0,5))) {
+                                    selector.selectedIndex = i; break;
+                                }
+                            }
+                        };
                         listaHTML.appendChild(d);
                     });
                 }
             }
             document.getElementById('seccion_eventos').style.display = huboEventos ? 'block' : 'none';
         } catch (e) { alert("Error: " + e.message); }
-    }
-
-    function autoCompletar(concepto, nombreCal) {
-        document.getElementById('tipoMov').value = 'ingreso';
-        ajustarFormulario();
-        document.getElementById('concepto').value = concepto;
-        const selector = document.getElementById('area');
-        for (let i = 0; i < selector.options.length; i++) {
-            if (nombreCal.toLowerCase().includes(selector.options[i].text.toLowerCase().substring(0,5))) {
-                selector.selectedIndex = i;
-                break;
-            }
-        }
     }
 
     function ajustarFormulario() {
@@ -156,6 +207,7 @@
         fechaActual = document.getElementById('fechaNavegador').value;
         cargarDia();
         document.getElementById('seccion_eventos').style.display = 'none';
+        document.getElementById('tablaResumen').style.display = 'none';
     }
 
     function cargarDia() {
@@ -170,19 +222,14 @@
         const c = document.getElementById('concepto').value;
         const tipo = document.getElementById('tipoMov').value;
         if(!m || !c) return alert("Faltan datos");
-
         registros.push({
-            id: Date.now(),
-            tipo: tipo,
+            id: Date.now(), tipo: tipo,
             area: tipo === 'ingreso' ? document.getElementById('area').value : 'GASTO',
-            concepto: c.trim(),
-            monto: parseFloat(m),
+            concepto: c.trim(), monto: parseFloat(m),
             hora: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
         });
-
         localStorage.setItem(`zarate_${fechaActual}`, JSON.stringify(registros));
-        document.getElementById('monto').value = '';
-        document.getElementById('concepto').value = '';
+        document.getElementById('monto').value = ''; document.getElementById('concepto').value = '';
         actualizarLista();
     }
 
@@ -219,22 +266,24 @@
                 });
             }
         }
-        let txt = `RESUMEN ${mesSel}\nINGRESOS: $${ing}\nGASTOS: $${gas}\nUTILIDAD: $${ing-gas}\n\nPor Área:\n`;
-        for (const [a, s] of Object.entries(areas)) txt += `- ${a}: $${s}\n`;
-        alert(txt);
+        if(ing === 0 && gas === 0) return alert("No hay datos para " + mesSel);
+        const tabla = document.getElementById('tablaResumen');
+        tabla.style.display = 'table';
+        let html = `<tr><td><b>Ingresos:</b></td><td style="color:var(--success)">$${ing.toFixed(2)}</td></tr>`;
+        for (const [a, s] of Object.entries(areas)) html += `<tr><td style="padding-left:15px; font-size:0.75rem;">└ ${a}</td><td style="font-size:0.75rem;">$${s.toFixed(2)}</td></tr>`;
+        html += `<tr><td><b>Gastos:</b></td><td style="color:var(--danger)">-$${gas.toFixed(2)}</td></tr>`;
+        html += `<tr style="border-top:2px solid #333"><td><b>UTILIDAD:</b></td><td style="font-weight:bold">$${(ing-gas).toFixed(2)}</td></tr>`;
+        tabla.innerHTML = html;
         const a = document.createElement('a');
-        a.href = URL.createObjectURL(new Blob([txt], {type:'text/plain'}));
-        a.download = `Resumen_${mesSel}.txt`;
-        a.click();
+        a.href = URL.createObjectURL(new Blob([`RESUMEN ${mesSel}\nUTILIDAD: $${ing-gas}`], {type:'text/plain'}));
+        a.download = `Resumen_${mesSel}.txt`; a.click();
     }
 
     function realizarCorte() {
         let t = registros.reduce((a,b) => a + (b.tipo==='ingreso'?b.monto:-b.monto), 0);
-        let txt = `CORTE ${fechaActual}\nNETO: $${t}\n\n` + registros.map(r => `${r.hora} - ${r.area}: $${r.monto}`).join('\n');
         const a = document.createElement('a');
-        a.href = URL.createObjectURL(new Blob([txt], {type:'text/plain'}));
-        a.download = `Corte_${fechaActual}.txt`;
-        a.click();
+        a.href = URL.createObjectURL(new Blob([`CORTE ${fechaActual}\nTOTAL: $${t}`], {type:'text/plain'}));
+        a.download = `Corte_${fechaActual}.txt`; a.click();
     }
 </script>
 </body>
