@@ -37,13 +37,13 @@
 <div id="modalInstrucciones">
     <div class="modal-content">
         <h2 style="color:var(--primary); margin-top:0;">🚀 Respaldo Creado</h2>
-        <p style="font-size:0.9rem;">Para el <b>equipo nuevo</b>: Abre la app allá, presiona "Elegir archivo" abajo y selecciona este respaldo.</p>
+        <p style="font-size:0.9rem;">Para el <b>equipo nuevo</b>: Abre la app allá, presiona "Elegir archivo" abajo y selecciona este respaldo (.json).</p>
         <button onclick="document.getElementById('modalInstrucciones').style.display='none'" style="background:var(--success); margin-top:10px;">Entendido</button>
     </div>
 </div>
 
 <div class="nav-temporal">
-    <label>📅 Fecha:</label>
+    <label>📅 Fecha de Trabajo:</label>
     <input type="date" id="fechaNavegador" onchange="cambiarFecha()">
     <div style="margin-top:15px; border-top: 1px solid #eee; padding-top:10px;">
         <label>📊 Utilidad Mensual:</label>
@@ -59,33 +59,34 @@
     <h1 id="tituloFecha">...</h1>
     <button id="btnSync" style="background:#4285F4; font-size:0.9rem; padding:10px;" class="btn-add">🔗 Sincronizar Calendarios</button>
     <div id="seccion_eventos" style="display:none; margin-bottom:20px;">
-        <label id="txt_pendientes">Citas:</label>
+        <label id="txt_pendientes">Citas pendientes:</label>
         <div id="lista_eventos_google"></div>
     </div>
 
     <div class="form-group">
-        <label>Movimiento</label>
+        <label>Tipo de Movimiento</label>
         <select id="tipoMov" onchange="ajustarFormulario()">
-            <option value="ingreso">🟢 Ingreso</option>
-            <option value="gasto">🔴 Gasto</option>
+            <option value="ingreso">🟢 Ingreso (Cobro)</option>
+            <option value="gasto">🔴 Gasto (Salida)</option>
         </select>
     </div>
     <div id="grupoArea" class="form-group">
-        <label>Área</label>
+        <label>Lugar / Área</label>
         <select id="area">
             <option>Consultorio 1</option><option>Consultorio 2</option><option>Salón espejos</option><option>Jardín</option><option>Cocina</option><option>Tiendita</option>
         </select>
     </div>
-    <div class="form-group"><label id="labelConcepto">Concepto</label><input type="text" id="concepto"></div>
+    <div class="form-group"><label id="labelConcepto">Concepto / Cliente</label><input type="text" id="concepto"></div>
     <div class="form-group"><label>Monto ($)</label><input type="number" id="monto"></div>
-    <button id="btnPrincipal" onclick="registrar()" class="btn-add">✅ REGISTRAR COBRO</button>
+    <button id="btnPrincipal" onclick="registrar()" class="btn-add">✅ REGISTRAR</button>
 </div>
 
 <div id="contenedorRegistros"></div>
-<button onclick="realizarCorte()" class="btn-corte">💰 CORTE DEL DÍA</button>
+<button onclick="realizarCorte()" class="btn-corte">💰 CORTE DEL DÍA (TXT)</button>
 
 <div style="margin-top:30px; border-top:2px dashed #ccc; padding-top:20px;">
-    <button onclick="descargarRespaldoTotal()" class="btn-respaldo">💾 RESPALDO TOTAL (.JSON)</button>
+    <button onclick="descargarRespaldoTotal()" class="btn-respaldo">💾 DESCARGAR RESPALDO TOTAL (.JSON)</button>
+    <label style="font-size:0.7rem; color:#666; display:block; margin-bottom:5px;">Restaurar en equipo nuevo:</label>
     <input type="file" id="importFile" onchange="importarRespaldo(this)" style="font-size:0.7rem;">
 </div>
 
@@ -125,20 +126,16 @@
                 }
             }
             renderizarSugerencias();
-        } catch (e) { alert("Error: " + e.message); }
+        } catch (e) { alert("Error al sincronizar: " + e.message); }
     }
 
-    // --- LA FUNCIÓN QUE LIMPIA LA LISTA ---
     function renderizarSugerencias() {
         const listaHTML = document.getElementById('lista_eventos_google');
         listaHTML.innerHTML = '';
-        // Obtenemos todos los nombres que YA fueron cobrados hoy
         const cobrados = registros.map(r => (r.concepto || "").toLowerCase().trim());
-        
         let pendientes = 0;
         eventosGoogle.forEach(ev => {
             const nombreEv = (ev.summary || "").toLowerCase().trim();
-            // Solo mostramos si NO está en la lista de cobrados
             if (!cobrados.includes(nombreEv)) {
                 pendientes++;
                 const d = document.createElement('div');
@@ -174,7 +171,7 @@
         localStorage.setItem(`zarate_${fechaActual}`, JSON.stringify(registros));
         document.getElementById('monto').value = ''; document.getElementById('concepto').value = '';
         actualizarLista();
-        renderizarSugerencias(); // Actualizar lista de citas al instante
+        renderizarSugerencias();
     }
 
     function borrarRegistro(id) {
@@ -182,8 +179,41 @@
             registros = registros.filter(r => r.id !== id);
             localStorage.setItem(`zarate_${fechaActual}`, JSON.stringify(registros));
             actualizarLista();
-            renderizarSugerencias(); // Si borras un cobro, la cita vuelve a aparecer arriba
+            renderizarSugerencias();
         }
+    }
+
+    function generarResumenMensual() {
+        const mes = document.getElementById('mesReporte').value;
+        let ing = 0, gas = 0, areas = {};
+        let conteo = 0;
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k.startsWith(`zarate_${mes}`)) {
+                JSON.parse(localStorage.getItem(k)).forEach(r => {
+                    conteo++;
+                    if(r.tipo === 'gasto') gas += r.monto;
+                    else { ing += r.monto; areas[r.area] = (areas[r.area] || 0) + r.monto; }
+                });
+            }
+        }
+        if(conteo === 0) return alert("No hay datos para " + mes);
+        
+        const t = document.getElementById('tablaResumen'); t.style.display = 'table';
+        let h = `<tr><td>Ingresos</td><td style="color:var(--success)">$${ing.toFixed(2)}</td></tr>`;
+        for (const [a, s] of Object.entries(areas)) h += `<tr><td style="font-size:0.7rem; padding-left:15px;">└ ${a}</td><td>$${s.toFixed(2)}</td></tr>`;
+        h += `<tr><td>Gastos</td><td style="color:var(--danger)">-$${gas.toFixed(2)}</td></tr><tr style="font-weight:bold; border-top:1px solid #333"><td>UTILIDAD</td><td>$${(ing-gas).toFixed(2)}</td></tr>`;
+        t.innerHTML = h;
+
+        let txt = `RESUMEN MENSUAL: ${mes}\nUTILIDAD: $${(ing-gas).toFixed(2)}\nINGRESOS: $${ing}\nGASTOS: $${gas}\n\nDetalle:\n`;
+        for (const [a, s] of Object.entries(areas)) txt += `- ${a}: $${s}\n`;
+        const blob = new Blob([txt], {type: 'text/plain'});
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `Resumen_${mes}.txt`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     }
 
     function cargarDia() {
@@ -207,24 +237,6 @@
                 <div style="text-align:right"><b>${r.tipo === 'gasto' ? '-' : ''}$${r.monto}</b><br>
                 <button class="btn-del" onclick="borrarRegistro(${r.id})">X</button></div>
             </div>`).reverse().join('') || '<p style="text-align:center;color:#94a3b8">Sin registros</p>';
-    }
-    function generarResumenMensual() {
-        const mes = document.getElementById('mesReporte').value; let ing = 0, gas = 0, areas = {};
-        for (let i = 0; i < localStorage.length; i++) {
-            const k = localStorage.key(i);
-            if (k.startsWith(`zarate_${mes}`)) {
-                JSON.parse(localStorage.getItem(k)).forEach(r => {
-                    if(r.tipo === 'gasto') gas += r.monto;
-                    else { ing += r.monto; areas[r.area] = (areas[r.area] || 0) + r.monto; }
-                });
-            }
-        }
-        if(ing === 0 && gas === 0) return alert("No hay datos");
-        const t = document.getElementById('tablaResumen'); t.style.display = 'table';
-        let h = `<tr><td>Ingresos</td><td style="color:var(--success)">$${ing}</td></tr>`;
-        for (const [a, s] of Object.entries(areas)) h += `<tr><td style="font-size:0.7rem; padding-left:15px;">└ ${a}</td><td>$${s}</td></tr>`;
-        h += `<tr><td>Gastos</td><td style="color:var(--danger)">-$${gas}</td></tr><tr style="font-weight:bold"><td>UTILIDAD</td><td>$${ing-gas}</td></tr>`;
-        t.innerHTML = h;
     }
     function realizarCorte() {
         let t = registros.reduce((a,b) => a + (b.tipo==='ingreso'?b.monto:-b.monto), 0);
