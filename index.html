@@ -4,187 +4,231 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Zárate Cien - Control Maestro</title>
-    <link rel="icon" href="data:,">
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="https://apis.google.com/js/api.js" async defer></script>
     <style>
-        :root { --primary: #2563eb; --success: #16a34a; --warning: #f59e0b; --bg: #f8fafc; --text: #1e293b; }
-        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 15px; }
+        :root { --primary: #2563eb; --success: #16a34a; --warning: #f59e0b; --danger: #ef4444; --bg: #f8fafc; --text: #1e293b; }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 15px; padding-bottom: 50px; }
         .card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        h1 { font-size: 1.5rem; text-align: center; color: var(--primary); margin-top: 0; }
-        .contador-box { padding: 12px; border-radius: 10px; text-align: center; font-weight: bold; margin-bottom: 15px; display: none; }
-        .contador-pendiente { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
-        .contador-listo { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
-        .btn-google { background: #4285F4; color: white; border: none; padding: 12px; border-radius: 10px; font-weight: bold; width: 100%; cursor: pointer; margin-bottom: 15px; display: flex; align-items: center; justify-content: center; gap: 8px; }
-        .evento-sugerido { background: #fff; padding: 12px; border-radius: 10px; margin-bottom: 8px; cursor: pointer; border-left: 5px solid #4285F4; box-shadow: 0 2px 4px rgba(0,0,0,0.05); font-size: 0.9rem; transition: 0.3s; }
-        .evento-cobrado { border-left-color: #ef4444 !important; color: #ef4444 !important; text-decoration: line-through; opacity: 0.5; background: #fee2e2; cursor: default; pointer-events: none; }
+        .nav-temporal { background: #fff; padding: 15px; border-radius: 15px; margin-bottom: 20px; border: 2px solid var(--primary); }
+        h1 { font-size: 1.3rem; text-align: center; color: var(--primary); margin: 0 0 15px 0; }
         .form-group { margin-bottom: 12px; }
         label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 5px; color: #64748b; }
-        select, input { width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 10px; font-size: 16px; box-sizing: border-box; outline: none; }
-        button { width: 100%; padding: 15px; border-radius: 10px; border: none; font-size: 1rem; font-weight: bold; cursor: pointer; color: white; }
-        .btn-add { background: var(--primary); margin-top: 10px; }
-        .btn-reporte { background: #6366f1; margin-top: 15px; }
-        .btn-corte { background: var(--warning); margin-top: 15px; }
-        .item-registro { background: #fff; padding: 12px; border-radius: 10px; margin-bottom: 10px; border-left: 5px solid var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        select, input { width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 10px; font-size: 16px; box-sizing: border-box; }
+        button { width: 100%; padding: 15px; border-radius: 10px; border: none; font-size: 1rem; font-weight: bold; cursor: pointer; color: white; transition: 0.2s; margin-bottom: 10px; }
+        .btn-add { background: var(--primary); }
+        .btn-gasto { background: var(--danger); }
+        .btn-resumen { background: #6366f1; }
+        .btn-corte { background: var(--warning); }
+        .item-registro { background: white; padding: 12px; border-radius: 10px; margin-bottom: 8px; border-left: 5px solid var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.05); font-size: 0.9rem; display: flex; justify-content: space-between; }
+        .tipo-gasto { border-left-color: var(--danger); color: var(--danger); }
+        .evento-sugerido { background: #f1f5f9; padding: 10px; border-radius: 8px; margin-bottom: 5px; font-size: 0.85rem; cursor: pointer; border: 1px solid #cbd5e1; }
     </style>
 </head>
 <body>
 
+<div class="nav-temporal">
+    <label>📅 Navegar a Fecha:</label>
+    <input type="date" id="fechaNavegador" onchange="cambiarFecha()">
+    <div style="margin-top:15px; border-top: 1px solid #eee; padding-top:10px;">
+        <label>📊 Utilidad Mensual (Mes/Año):</label>
+        <div style="display:flex; gap:10px;">
+            <input type="month" id="mesReporte">
+            <button onclick="generarResumenMensual()" style="padding:10px; width:auto; margin:0;" class="btn-resumen">Calcular</button>
+        </div>
+    </div>
+</div>
+
 <div class="card">
-    <h1>Zárate Cien</h1>
-    <button id="btnSync" class="btn-google">🔗 Sincronizar Calendarios</button>
-    <div id="contador_pendientes" class="contador-box"></div>
-    <div id="seccion_eventos" style="display:none; margin-bottom: 20px;">
-        <label>Citas de hoy:</label>
+    <h1 id="tituloFecha">CARGANDO...</h1>
+    <button id="btnSync" style="background:#4285F4; font-size:0.9rem; padding:10px;" class="btn-add">🔗 Citas del Calendario</button>
+    <div id="seccion_eventos" style="display:none; margin-bottom:20px;">
         <div id="lista_eventos_google"></div>
     </div>
+
     <div class="form-group">
-        <label>Lugar</label>
+        <label>Tipo de Movimiento</label>
+        <select id="tipoMov" onchange="ajustarFormulario()">
+            <option value="ingreso">🟢 Ingreso (Cobro)</option>
+            <option value="gasto">🔴 Gasto (Salida)</option>
+        </select>
+    </div>
+
+    <div id="grupoArea" class="form-group">
+        <label>Lugar/Área</label>
         <select id="area">
             <option>Consultorio 1</option><option>Consultorio 2</option><option>Espejos</option><option>Jardín</option><option>Tiendita</option>
         </select>
     </div>
-    <div class="form-group"><label>Concepto (Cliente)</label><input type="text" id="concepto"></div>
+
+    <div class="form-group"><label id="labelConcepto">Concepto / Cliente</label><input type="text" id="concepto"></div>
     <div class="form-group"><label>Monto ($)</label><input type="number" id="monto"></div>
-    <button id="btnAdd" class="btn-add">✅ REGISTRAR COBRO</button>
+    <button id="btnPrincipal" onclick="registrar()" class="btn-add">✅ REGISTRAR COBRO</button>
 </div>
 
 <div id="contenedorRegistros"></div>
-<button id="btnReport" class="btn-reporte">💾 DESCARGAR REPORTE</button>
-<button id="btnCorte" class="btn-corte">💰 CORTE DE CAJA</button>
+<button onclick="realizarCorte()" class="btn-corte">💰 CORTE DEL DÍA (TXT)</button>
 
 <script>
-    // --- 1. CONFIGURACIÓN ---
     const CLIENT_ID = '121923437756-b8fdp4su9es3f67ahv2vdlv916b8i5pb.apps.googleusercontent.com';
     const API_KEY = 'AIzaSyB8iPhJMpbvUp7mQqCNBUXnkig7vV1m5RA';
-    const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest';
-    const SCOPES = 'https://www.googleapis.com/auth/calendar.readonly';
-
+    
+    let fechaActual = new Date().toISOString().split('T')[0];
+    let registros = [];
     let tokenClient;
-    let registros = JSON.parse(localStorage.getItem('zarate_datos')) || [];
-    let eventosCache = [];
 
-    // --- 2. LÓGICA DE INICIO ---
     window.onload = () => {
-        actualizarInterfaz();
+        const hoyStr = new Date().toISOString().split('T')[0];
+        document.getElementById('fechaNavegador').max = hoyStr;
+        document.getElementById('mesReporte').max = hoyStr.substring(0, 7);
+        document.getElementById('fechaNavegador').value = hoyStr;
+        document.getElementById('mesReporte').value = hoyStr.substring(0, 7);
         
-        // Inicializar GAPI
+        cargarDia();
+
         gapi.load('client', async () => {
-            await gapi.client.init({ apiKey: API_KEY, discoveryDocs: [DISCOVERY_DOC] });
+            await gapi.client.init({ apiKey: API_KEY, discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest'] });
         });
 
-        // Inicializar Identidad de Google
         tokenClient = google.accounts.oauth2.initTokenClient({
-            client_id: CLIENT_ID,
-            scope: SCOPES,
-            callback: async (resp) => {
-                if (resp.error) return;
-                await cargarEventos();
-            }
+            client_id: CLIENT_ID, scope: 'https://www.googleapis.com/auth/calendar.readonly',
+            callback: async (resp) => { if (!resp.error) await cargarEventos(); }
         });
 
-        // ASIGNAR CLICS DESDE AQUÍ (SIN ONCLICK EN HTML)
-        document.getElementById('btnSync').onclick = () => {
-            tokenClient.requestAccessToken({prompt: 'consent'});
-        };
-
-        document.getElementById('btnAdd').onclick = () => registrar();
-        document.getElementById('btnReport').onclick = () => descargarReporte();
-        document.getElementById('btnCorte').onclick = () => realizarCorte();
+        document.getElementById('btnSync').onclick = () => tokenClient.requestAccessToken({prompt: 'consent'});
     };
 
-    // --- 3. FUNCIONES ---
-    async function cargarEventos() {
-        const inicio = new Date(); inicio.setHours(0,0,0,0);
-        const fin = new Date(); fin.setHours(23,59,59,999);
-        try {
-            const listaCal = await gapi.client.calendar.calendarList.list();
-            let temp = [];
-            for (let cal of listaCal.result.items) {
-                const res = await gapi.client.calendar.events.list({
-                    calendarId: cal.id, timeMin: inicio.toISOString(), timeMax: fin.toISOString(), singleEvents: true
-                });
-                if (res.result.items) temp = temp.concat(res.result.items);
-            }
-            eventosCache = Array.from(new Set(temp.map(a => a.id))).map(id => temp.find(a => a.id === id));
-            renderEventos();
-        } catch (e) { alert("Error al conectar: " + e.message); }
+    function ajustarFormulario() {
+        const tipo = document.getElementById('tipoMov').value;
+        const btn = document.getElementById('btnPrincipal');
+        const grupoArea = document.getElementById('grupoArea');
+        if(tipo === 'gasto') {
+            btn.innerText = "🔴 REGISTRAR GASTO";
+            btn.className = "btn-gasto";
+            grupoArea.style.display = "none";
+            document.getElementById('labelConcepto').innerText = "Descripción del Gasto";
+        } else {
+            btn.innerText = "✅ REGISTRAR COBRO";
+            btn.className = "btn-add";
+            grupoArea.style.display = "block";
+            document.getElementById('labelConcepto').innerText = "Concepto / Cliente";
+        }
+    }
+
+    function cambiarFecha() {
+        fechaActual = document.getElementById('fechaNavegador').value;
+        cargarDia();
+    }
+
+    function cargarDia() {
+        const titulo = new Date(fechaActual + "T12:00:00").toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' });
+        document.getElementById('tituloFecha').innerText = titulo.toUpperCase();
+        registros = JSON.parse(localStorage.getItem(`zarate_${fechaActual}`)) || [];
+        actualizarLista();
     }
 
     function registrar() {
-        const conc = document.getElementById('concepto').value;
-        const mont = document.getElementById('monto').value;
-        if(!conc || !mont) return alert("Faltan datos.");
+        const m = document.getElementById('monto').value;
+        const c = document.getElementById('concepto').value;
+        const tipo = document.getElementById('tipoMov').value;
+        if(!m || !c) return alert("Faltan datos");
+
         registros.push({
-            area: document.getElementById('area').value,
-            concepto: conc.trim(),
-            monto: parseFloat(mont),
-            fecha: new Date().toLocaleString()
+            tipo: tipo,
+            area: tipo === 'ingreso' ? document.getElementById('area').value : 'GASTO GENERAL',
+            concepto: c.trim(),
+            monto: parseFloat(m),
+            hora: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
         });
-        localStorage.setItem('zarate_datos', JSON.stringify(registros));
-        actualizarInterfaz();
-        renderEventos();
+
+        localStorage.setItem(`zarate_${fechaActual}`, JSON.stringify(registros));
         document.getElementById('monto').value = '';
         document.getElementById('concepto').value = '';
+        actualizarLista();
     }
 
-    function descargarReporte() {
-        if(registros.length === 0) return alert("No hay datos.");
-        const agrupados = {};
-        registros.forEach(r => {
-            const llave = `${r.area.toLowerCase()}-${r.concepto.toLowerCase()}`;
-            if (!agrupados[llave]) agrupados[llave] = { area: r.area, concepto: r.concepto, monto: 0 };
-            agrupados[llave].monto += r.monto;
-        });
-        let txt = `REPORTE ZÁRATE CIEN\n------------------\n`;
-        Object.values(agrupados).forEach(i => {
-            txt += `${i.area} | ${i.concepto} | $${i.monto.toFixed(2)}\n`;
-        });
-        const blob = new Blob([txt], { type: 'text/plain' });
+    function generarResumenMensual() {
+        const mesSel = document.getElementById('mesReporte').value;
+        let ingresosTotal = 0;
+        let gastosTotal = 0;
+        let desgloseAreas = {};
+
+        for (let i = 0; i < localStorage.length; i++) {
+            const clave = localStorage.key(i);
+            if (clave.startsWith(`zarate_${mesSel}`)) {
+                const diaData = JSON.parse(localStorage.getItem(clave));
+                diaData.forEach(r => {
+                    if(r.tipo === 'gasto') {
+                        gastosTotal += r.monto;
+                    } else {
+                        ingresosTotal += r.monto;
+                        desgloseAreas[r.area] = (desgloseAreas[r.area] || 0) + r.monto;
+                    }
+                });
+            }
+        }
+
+        let utilidad = ingresosTotal - gastosTotal;
+        let msg = `RESUMEN MENSUAL: ${mesSel}\n`;
+        msg += `--------------------------\n`;
+        msg += `INGRESOS POR ÁREA:\n`;
+        for (const [area, suma] of Object.entries(desgloseAreas)) {
+            msg += `- ${area}: $${suma.toFixed(2)}\n`;
+        }
+        msg += `--------------------------\n`;
+        msg += `(+) TOTAL INGRESOS: $${ingresosTotal.toFixed(2)}\n`;
+        msg += `(-) TOTAL GASTOS:   $${gastosTotal.toFixed(2)}\n`;
+        msg += `--------------------------\n`;
+        msg += `(=) UTILIDAD REAL:  $${utilidad.toFixed(2)}`;
+        
+        alert(msg);
         const a = document.createElement('a');
-        a.href = window.URL.createObjectURL(blob);
-        a.download = `Reporte.txt`;
+        a.href = URL.createObjectURL(new Blob([msg], {type:'text/plain'}));
+        a.download = `Utilidad_${mesSel}.txt`;
         a.click();
     }
 
-    function realizarCorte() {
-        if(confirm("¿Borrar historial de hoy?")) {
-            registros = [];
-            localStorage.removeItem('zarate_datos');
-            actualizarInterfaz();
-            renderEventos();
-        }
-    }
-
-    function renderEventos() {
+    async function cargarEventos() {
+        const inicio = new Date(fechaActual + "T00:00:00").toISOString();
+        const fin = new Date(fechaActual + "T23:59:59").toISOString();
+        const res = await gapi.client.calendar.events.list({ calendarId: 'primary', timeMin: inicio, timeMax: fin, singleEvents: true });
         const lista = document.getElementById('lista_eventos_google');
-        const cont = document.getElementById('contador_pendientes');
         lista.innerHTML = '';
-        const nombresCobrados = registros.map(r => r.concepto.toLowerCase().trim());
-        let p = 0;
-        eventosCache.forEach(ev => {
-            const nombre = (ev.summary || '').toLowerCase().trim();
-            const cobrado = nombresCobrados.includes(nombre);
-            if(!cobrado) p++;
-            const div = document.createElement('div');
-            div.className = 'evento-sugerido' + (cobrado ? ' evento-cobrado' : '');
-            div.innerText = ev.summary || '(Sin título)';
-            if(!cobrado) div.onclick = () => { document.getElementById('concepto').value = ev.summary; };
-            lista.appendChild(div);
-        });
-        if(eventosCache.length > 0) {
+        if(res.result.items.length > 0) {
             document.getElementById('seccion_eventos').style.display = 'block';
-            cont.style.display = 'block';
-            cont.innerText = p > 0 ? `Faltan ${p} clientes` : "✅ Completado";
-            cont.className = 'contador-box ' + (p > 0 ? 'contador-pendiente' : 'contador-listo');
+            res.result.items.forEach(ev => {
+                const d = document.createElement('div');
+                d.className = 'evento-sugerido';
+                d.innerText = ev.summary;
+                d.onclick = () => {
+                    document.getElementById('tipoMov').value = 'ingreso';
+                    ajustarFormulario();
+                    document.getElementById('concepto').value = ev.summary;
+                };
+                lista.appendChild(d);
+            });
         }
     }
 
-    function actualizarInterfaz() {
+    function actualizarLista() {
         const cont = document.getElementById('contenedorRegistros');
         cont.innerHTML = registros.map(r => `
-            <div class="item-registro"><b>${r.area}</b>: ${r.concepto} | $${r.monto}</div>
-        `).reverse().join('');
+            <div class="item-registro ${r.tipo === 'gasto' ? 'tipo-gasto' : ''}">
+                <div><b>${r.area}</b><br><small>${r.concepto}</small></div>
+                <div style="text-align:right"><b>${r.tipo === 'gasto' ? '-' : ''}$${r.monto}</b><br><small>${r.hora}</small></div>
+            </div>
+        `).reverse().join('') || '<p style="text-align:center;color:#94a3b8">Sin registros en esta fecha</p>';
+    }
+
+    function realizarCorte() {
+        let tI = registros.filter(r=>r.tipo==='ingreso').reduce((a,b)=>a+b.monto,0);
+        let tG = registros.filter(r=>r.tipo==='gasto').reduce((a,b)=>a+b.monto,0);
+        let txt = `CORTE ${fechaActual}\nINGRESOS: $${tI}\nGASTOS: $${tG}\nNETO: $${tI-tG}\n\n`;
+        txt += registros.map(r => `${r.hora} - [${r.tipo.toUpperCase()}] ${r.area}: $${r.monto}`).join('\n');
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([txt], {type:'text/plain'}));
+        a.download = `Corte_${fechaActual}.txt`;
+        a.click();
     }
 </script>
 </body>
