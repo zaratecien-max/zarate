@@ -20,9 +20,11 @@
         .btn-gasto { background: var(--danger); }
         .btn-resumen { background: #6366f1; }
         .btn-corte { background: var(--warning); }
-        .item-registro { background: white; padding: 12px; border-radius: 10px; margin-bottom: 8px; border-left: 5px solid var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.05); font-size: 0.9rem; display: flex; justify-content: space-between; }
-        .tipo-gasto { border-left-color: var(--danger); color: var(--danger); }
-        .evento-sugerido { background: #f1f5f9; padding: 10px; border-radius: 8px; margin-bottom: 5px; font-size: 0.85rem; cursor: pointer; border: 1px solid #cbd5e1; }
+        .item-registro { background: white; padding: 12px; border-radius: 10px; margin-bottom: 8px; border-left: 5px solid var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.05); font-size: 0.9rem; display: flex; justify-content: space-between; align-items: center; }
+        .tipo-gasto { border-left-color: var(--danger); }
+        .btn-del { background: #fee2e2; color: #ef4444; padding: 5px 10px; border-radius: 8px; font-size: 0.8rem; width: auto; margin: 0; }
+        .evento-sugerido { background: #f1f5f9; padding: 10px; border-radius: 8px; margin-bottom: 5px; font-size: 0.8rem; cursor: pointer; border: 1px solid #cbd5e1; display: flex; justify-content: space-between; }
+        .tag-cal { background: var(--primary); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.6rem; text-transform: uppercase; }
     </style>
 </head>
 <body>
@@ -31,7 +33,7 @@
     <label>📅 Navegar a Fecha:</label>
     <input type="date" id="fechaNavegador" onchange="cambiarFecha()">
     <div style="margin-top:15px; border-top: 1px solid #eee; padding-top:10px;">
-        <label>📊 Utilidad Mensual (Mes/Año):</label>
+        <label>📊 Utilidad Mensual:</label>
         <div style="display:flex; gap:10px;">
             <input type="month" id="mesReporte">
             <button onclick="generarResumenMensual()" style="padding:10px; width:auto; margin:0;" class="btn-resumen">Calcular</button>
@@ -41,8 +43,9 @@
 
 <div class="card">
     <h1 id="tituloFecha">CARGANDO...</h1>
-    <button id="btnSync" style="background:#4285F4; font-size:0.9rem; padding:10px;" class="btn-add">🔗 Citas del Calendario</button>
+    <button id="btnSync" style="background:#4285F4; font-size:0.9rem; padding:10px;" class="btn-add">🔗 Sincronizar todos los Calendarios</button>
     <div id="seccion_eventos" style="display:none; margin-bottom:20px;">
+        <label>Citas detectadas:</label>
         <div id="lista_eventos_google"></div>
     </div>
 
@@ -57,13 +60,13 @@
     <div id="grupoArea" class="form-group">
         <label>Lugar/Área</label>
         <select id="area">
-            <option>Consultorio 1</option><option>Consultorio 2</option><option>Espejos</option><option>Jardín</option><option>Tiendita</option>
+            <option>Consultorio 1</option><option>Consultorio 2</option><option>Salón espejos</option><option>Jardín</option><option>Tiendita</option>
         </select>
     </div>
 
     <div class="form-group"><label id="labelConcepto">Concepto / Cliente</label><input type="text" id="concepto"></div>
     <div class="form-group"><label>Monto ($)</label><input type="number" id="monto"></div>
-    <button id="btnPrincipal" onclick="registrar()" class="btn-add">✅ REGISTRAR COBRO</button>
+    <button id="btnPrincipal" onclick="registrar()" class="btn-add">✅ REGISTRAR</button>
 </div>
 
 <div id="contenedorRegistros"></div>
@@ -78,12 +81,11 @@
     let tokenClient;
 
     window.onload = () => {
-        const hoyStr = new Date().toISOString().split('T')[0];
-        document.getElementById('fechaNavegador').max = hoyStr;
-        document.getElementById('mesReporte').max = hoyStr.substring(0, 7);
-        document.getElementById('fechaNavegador').value = hoyStr;
-        document.getElementById('mesReporte').value = hoyStr.substring(0, 7);
-        
+        const hoy = new Date().toISOString().split('T')[0];
+        document.getElementById('fechaNavegador').max = hoy;
+        document.getElementById('mesReporte').max = hoy.substring(0, 7);
+        document.getElementById('fechaNavegador').value = hoy;
+        document.getElementById('mesReporte').value = hoy.substring(0, 7);
         cargarDia();
 
         gapi.load('client', async () => {
@@ -92,32 +94,68 @@
 
         tokenClient = google.accounts.oauth2.initTokenClient({
             client_id: CLIENT_ID, scope: 'https://www.googleapis.com/auth/calendar.readonly',
-            callback: async (resp) => { if (!resp.error) await cargarEventos(); }
+            callback: async (resp) => { if (!resp.error) await cargarMultiplesCalendarios(); }
         });
 
         document.getElementById('btnSync').onclick = () => tokenClient.requestAccessToken({prompt: 'consent'});
     };
 
+    async function cargarMultiplesCalendarios() {
+        const inicio = new Date(fechaActual + "T00:00:00").toISOString();
+        const fin = new Date(fechaActual + "T23:59:59").toISOString();
+        
+        try {
+            const listaCal = await gapi.client.calendar.calendarList.list();
+            const listaHTML = document.getElementById('lista_eventos_google');
+            listaHTML.innerHTML = '';
+            let huboEventos = false;
+
+            for (const cal of listaCal.result.items) {
+                const res = await gapi.client.calendar.events.list({
+                    calendarId: cal.id, timeMin: inicio, timeMax: fin, singleEvents: true
+                });
+
+                if (res.result.items.length > 0) {
+                    huboEventos = true;
+                    res.result.items.forEach(ev => {
+                        const d = document.createElement('div');
+                        d.className = 'evento-sugerido';
+                        d.innerHTML = `<span>${ev.summary}</span> <span class="tag-cal">${cal.summary}</span>`;
+                        d.onclick = () => autoCompletar(ev.summary, cal.summary);
+                        listaHTML.appendChild(d);
+                    });
+                }
+            }
+            document.getElementById('seccion_eventos').style.display = huboEventos ? 'block' : 'none';
+        } catch (e) { alert("Error: " + e.message); }
+    }
+
+    function autoCompletar(concepto, nombreCal) {
+        document.getElementById('tipoMov').value = 'ingreso';
+        ajustarFormulario();
+        document.getElementById('concepto').value = concepto;
+        const selector = document.getElementById('area');
+        for (let i = 0; i < selector.options.length; i++) {
+            if (nombreCal.toLowerCase().includes(selector.options[i].text.toLowerCase().substring(0,5))) {
+                selector.selectedIndex = i;
+                break;
+            }
+        }
+    }
+
     function ajustarFormulario() {
         const tipo = document.getElementById('tipoMov').value;
         const btn = document.getElementById('btnPrincipal');
         const grupoArea = document.getElementById('grupoArea');
-        if(tipo === 'gasto') {
-            btn.innerText = "🔴 REGISTRAR GASTO";
-            btn.className = "btn-gasto";
-            grupoArea.style.display = "none";
-            document.getElementById('labelConcepto').innerText = "Descripción del Gasto";
-        } else {
-            btn.innerText = "✅ REGISTRAR COBRO";
-            btn.className = "btn-add";
-            grupoArea.style.display = "block";
-            document.getElementById('labelConcepto').innerText = "Concepto / Cliente";
-        }
+        btn.innerText = tipo === 'gasto' ? "🔴 REGISTRAR GASTO" : "✅ REGISTRAR COBRO";
+        btn.className = tipo === 'gasto' ? "btn-gasto" : "btn-add";
+        grupoArea.style.display = tipo === 'gasto' ? "none" : "block";
     }
 
     function cambiarFecha() {
         fechaActual = document.getElementById('fechaNavegador').value;
         cargarDia();
+        document.getElementById('seccion_eventos').style.display = 'none';
     }
 
     function cargarDia() {
@@ -134,8 +172,9 @@
         if(!m || !c) return alert("Faltan datos");
 
         registros.push({
+            id: Date.now(),
             tipo: tipo,
-            area: tipo === 'ingreso' ? document.getElementById('area').value : 'GASTO GENERAL',
+            area: tipo === 'ingreso' ? document.getElementById('area').value : 'GASTO',
             concepto: c.trim(),
             monto: parseFloat(m),
             hora: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
@@ -147,66 +186,11 @@
         actualizarLista();
     }
 
-    function generarResumenMensual() {
-        const mesSel = document.getElementById('mesReporte').value;
-        let ingresosTotal = 0;
-        let gastosTotal = 0;
-        let desgloseAreas = {};
-
-        for (let i = 0; i < localStorage.length; i++) {
-            const clave = localStorage.key(i);
-            if (clave.startsWith(`zarate_${mesSel}`)) {
-                const diaData = JSON.parse(localStorage.getItem(clave));
-                diaData.forEach(r => {
-                    if(r.tipo === 'gasto') {
-                        gastosTotal += r.monto;
-                    } else {
-                        ingresosTotal += r.monto;
-                        desgloseAreas[r.area] = (desgloseAreas[r.area] || 0) + r.monto;
-                    }
-                });
-            }
-        }
-
-        let utilidad = ingresosTotal - gastosTotal;
-        let msg = `RESUMEN MENSUAL: ${mesSel}\n`;
-        msg += `--------------------------\n`;
-        msg += `INGRESOS POR ÁREA:\n`;
-        for (const [area, suma] of Object.entries(desgloseAreas)) {
-            msg += `- ${area}: $${suma.toFixed(2)}\n`;
-        }
-        msg += `--------------------------\n`;
-        msg += `(+) TOTAL INGRESOS: $${ingresosTotal.toFixed(2)}\n`;
-        msg += `(-) TOTAL GASTOS:   $${gastosTotal.toFixed(2)}\n`;
-        msg += `--------------------------\n`;
-        msg += `(=) UTILIDAD REAL:  $${utilidad.toFixed(2)}`;
-        
-        alert(msg);
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(new Blob([msg], {type:'text/plain'}));
-        a.download = `Utilidad_${mesSel}.txt`;
-        a.click();
-    }
-
-    async function cargarEventos() {
-        const inicio = new Date(fechaActual + "T00:00:00").toISOString();
-        const fin = new Date(fechaActual + "T23:59:59").toISOString();
-        const res = await gapi.client.calendar.events.list({ calendarId: 'primary', timeMin: inicio, timeMax: fin, singleEvents: true });
-        const lista = document.getElementById('lista_eventos_google');
-        lista.innerHTML = '';
-        if(res.result.items.length > 0) {
-            document.getElementById('seccion_eventos').style.display = 'block';
-            res.result.items.forEach(ev => {
-                const d = document.createElement('div');
-                d.className = 'evento-sugerido';
-                d.innerText = ev.summary;
-                d.onclick = () => {
-                    document.getElementById('tipoMov').value = 'ingreso';
-                    ajustarFormulario();
-                    document.getElementById('concepto').value = ev.summary;
-                };
-                lista.appendChild(d);
-            });
+    function borrarRegistro(id) {
+        if(confirm("¿Borrar este movimiento?")) {
+            registros = registros.filter(r => r.id !== id);
+            localStorage.setItem(`zarate_${fechaActual}`, JSON.stringify(registros));
+            actualizarLista();
         }
     }
 
@@ -215,16 +199,38 @@
         cont.innerHTML = registros.map(r => `
             <div class="item-registro ${r.tipo === 'gasto' ? 'tipo-gasto' : ''}">
                 <div><b>${r.area}</b><br><small>${r.concepto}</small></div>
-                <div style="text-align:right"><b>${r.tipo === 'gasto' ? '-' : ''}$${r.monto}</b><br><small>${r.hora}</small></div>
+                <div style="text-align:right">
+                    <b>${r.tipo === 'gasto' ? '-' : ''}$${r.monto}</b><br>
+                    <button class="btn-del" onclick="borrarRegistro(${r.id})">Eliminar</button>
+                </div>
             </div>
-        `).reverse().join('') || '<p style="text-align:center;color:#94a3b8">Sin registros en esta fecha</p>';
+        `).reverse().join('') || '<p style="text-align:center;color:#94a3b8">Sin registros</p>';
+    }
+
+    function generarResumenMensual() {
+        const mesSel = document.getElementById('mesReporte').value;
+        let ing = 0, gas = 0, areas = {};
+        for (let i = 0; i < localStorage.length; i++) {
+            const clave = localStorage.key(i);
+            if (clave.startsWith(`zarate_${mesSel}`)) {
+                JSON.parse(localStorage.getItem(clave)).forEach(r => {
+                    if(r.tipo === 'gasto') gas += r.monto;
+                    else { ing += r.monto; areas[r.area] = (areas[r.area] || 0) + r.monto; }
+                });
+            }
+        }
+        let txt = `RESUMEN ${mesSel}\nINGRESOS: $${ing}\nGASTOS: $${gas}\nUTILIDAD: $${ing-gas}\n\nPor Área:\n`;
+        for (const [a, s] of Object.entries(areas)) txt += `- ${a}: $${s}\n`;
+        alert(txt);
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([txt], {type:'text/plain'}));
+        a.download = `Resumen_${mesSel}.txt`;
+        a.click();
     }
 
     function realizarCorte() {
-        let tI = registros.filter(r=>r.tipo==='ingreso').reduce((a,b)=>a+b.monto,0);
-        let tG = registros.filter(r=>r.tipo==='gasto').reduce((a,b)=>a+b.monto,0);
-        let txt = `CORTE ${fechaActual}\nINGRESOS: $${tI}\nGASTOS: $${tG}\nNETO: $${tI-tG}\n\n`;
-        txt += registros.map(r => `${r.hora} - [${r.tipo.toUpperCase()}] ${r.area}: $${r.monto}`).join('\n');
+        let t = registros.reduce((a,b) => a + (b.tipo==='ingreso'?b.monto:-b.monto), 0);
+        let txt = `CORTE ${fechaActual}\nNETO: $${t}\n\n` + registros.map(r => `${r.hora} - ${r.area}: $${r.monto}`).join('\n');
         const a = document.createElement('a');
         a.href = URL.createObjectURL(new Blob([txt], {type:'text/plain'}));
         a.download = `Corte_${fechaActual}.txt`;
